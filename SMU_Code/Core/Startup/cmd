@@ -1,0 +1,26 @@
+#ifndef CMD_H
+#define CMD_H
+
+#include <stdio.h>
+#include <string.h>
+
+
+#define MAX_COMMANDS 20  // Maximum number of commands
+
+typedef void (*CommandFunc)();  // Define a type for command function pointers
+
+typedef struct {
+    char commandName[20];  // Command name
+    CommandFunc execute;   // Function pointer to execute the command
+} Command;
+
+Command commandList[MAX_COMMANDS];
+int commandCount = 0;
+
+void executeCommand(const char *input) ;
+void registerCommand(const char *name, CommandFunc function);
+void debugCommand(char *str);
+void returnVersion(char *str);
+void calibrationCommand(char *str);
+#endif // CMD_H
+#include "cmd.c"
