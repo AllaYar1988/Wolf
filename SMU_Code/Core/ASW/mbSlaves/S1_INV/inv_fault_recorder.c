@@ -1,8 +1,17 @@
-/*
- * inv_fault_recorder.c
+/**
+ * @file inv_fault_recorder.c
+ * @brief Inverter fault recorder implementation
  *
- *  Created on: Oct 13, 2025
- *      Author: Allayar Moazami
+ * This module implements fault snapshot recording functionality for inverter systems.
+ * It captures fault data including currents, voltages, and timing information, and
+ * provides both local serial and remote web-based reporting capabilities.
+ *
+ * The module uses a circular buffer to store up to 100 fault snapshots. Each snapshot
+ * contains 11 data fields including fault codes, system state, current measurements,
+ * voltage measurements, and timestamps.
+ *
+ * @date Created on: Oct 13, 2025
+ * @author Allayar Moazami
  */
 #include "inv_fault_recorder.h"
 #include "httpFrame.h"
@@ -10,35 +19,100 @@
 #include <string.h>
 #include "server.h"
 
-/* Constants */
+/* ========================================================================
+ * Constants
+ * ======================================================================== */
+
+/** @brief Size of event buffer for JSON formatted snapshots */
 #define EVENT_BUFFER_SIZE 500
+
+/** @brief Size of temporary string buffer for formatting */
 #define TEMP_STRING_SIZE 40
+
+/** @brief Snapshot count threshold for local reporting mode */
 #define SNAPSHOT_THRESHOLD 98
 
-/* Static variables */
+/* ========================================================================
+ * Static Variables
+ * ======================================================================== */
+
+/** @brief Global snapshot buffer and state management structure */
 static StuSnapShotType gStuSnapshot;
+
+/** @brief Local reporting mode flag (0=remote/web, 1=local/serial) */
 static u8 gLocalReport = 0;
+
+/** @brief Internal buffer for formatting event data for transmission */
 static u8 iEventBuff[EVENT_BUFFER_SIZE];
 
-/* Static function prototypes */
+/* ========================================================================
+ * Static Function Prototypes
+ * ======================================================================== */
+
+/**
+ * @brief Build JSON header with metadata
+ * @param[out] str Output buffer for JSON string
+ * @param[in] str_size Size of output buffer
+ * @param[in] tm DateTime structure with timestamp information
+ */
 static void inv_fault_recorder_start_json(char *str, size_t str_size, DateTime tm);
+
+/**
+ * @brief Append unsigned 16-bit field to JSON string
+ * @param[in,out] str JSON string buffer to append to
+ * @param[in] str_size Size of the string buffer
+ * @param[in] field_name JSON field name (e.g., "V1", "V2")
+ * @param[in] label Human-readable label (e.g., "Fcode", "State")
+ * @param[in] value Unsigned 16-bit value to append
+ * @param[in] unit Unit of measurement (e.g., "A", "V", "N")
+ * @param[in] is_last Flag indicating if this is the last field (1) or not (0)
+ */
 static void inv_fault_recorder_append_field_u16(char *str, size_t str_size,
                                                   const char *field_name,
                                                   const char *label,
                                                   u16 value,
                                                   const char *unit,
                                                   u8 is_last);
+
+/**
+ * @brief Append signed 16-bit field to JSON string
+ * @param[in,out] str JSON string buffer to append to
+ * @param[in] str_size Size of the string buffer
+ * @param[in] field_name JSON field name (e.g., "V3", "V4")
+ * @param[in] label Human-readable label (e.g., "Iinv1", "Vc1")
+ * @param[in] value Signed 16-bit value to append
+ * @param[in] unit Unit of measurement (e.g., "A", "V")
+ * @param[in] is_last Flag indicating if this is the last field (1) or not (0)
+ */
 static void inv_fault_recorder_append_field_s16(char *str, size_t str_size,
                                                   const char *field_name,
                                                   const char *label,
                                                   int16_t value,
                                                   const char *unit,
                                                   u8 is_last);
+
+/**
+ * @brief Build complete JSON snapshot data
+ * @param[out] str Output buffer for JSON string
+ * @param[in] str_size Size of output buffer
+ * @param[in] idx Snapshot buffer index to format
+ */
 static void inv_fault_recorder_build_json(char *str, size_t str_size, u16 idx);
-/*
+
+/* ========================================================================
+ * Public Function Implementations
+ * ======================================================================== */
+
+/**
  * @brief Set data at specified index in the current snapshot
- * @param index Data field index
- * @param invData Data value to store
+ *
+ * Stores a 16-bit value at the specified field index in the current snapshot being recorded.
+ * The data is stored at the position indicated by the head index.
+ *
+ * @param[in] index Data field index (should be one of EnuSnapshot values)
+ * @param[in] invData Data value to store (16-bit unsigned)
+ *
+ * @note This function only stores data if the head index is within buffer bounds
  */
 void inv_fault_recorder_set_data(u16 index, u16 invData)
 {
@@ -49,9 +123,13 @@ void inv_fault_recorder_set_data(u16 index, u16 invData)
     }
 }
 
-/*
- * @brief Increment snapshot buffer index
- * @return 1 if successful, 0 if buffer is full
+/**
+ * @brief Increment snapshot buffer head index
+ *
+ * Advances the head pointer to prepare for the next snapshot. This should be called
+ * after all data fields for the current snapshot have been set.
+ *
+ * @return 1 if increment was successful, 0 if buffer is full
  */
 u8 inv_fault_recorder_inc_idx(void)
 {
@@ -62,9 +140,16 @@ u8 inv_fault_recorder_inc_idx(void)
     return 0;
 }
 
-/*
+/**
  * @brief Get fault recorder status
- * @return 0=idle, 1=remote reporting pending, 2=local reporting ready
+ *
+ * Returns the current operational status of the fault recorder based on the
+ * reporting mode (local vs remote) and buffer state.
+ *
+ * @return Status code:
+ *         - 0: Idle (no data to report)
+ *         - 1: Remote reporting pending (data available for web transmission)
+ *         - 2: Local reporting ready (threshold reached for local output)
  */
 u8 inv_fault_recorder_status(void)
 {
@@ -82,8 +167,24 @@ u8 inv_fault_recorder_status(void)
     return 0;
 }
 
-/*
+/* ========================================================================
+ * Static Helper Function Implementations
+ * ======================================================================== */
+
+/**
  * @brief Append unsigned 16-bit field to JSON string
+ *
+ * Formats and appends a JSON field with an unsigned 16-bit value to the output string.
+ * The field is formatted as: "field_name": "label*value*unit"
+ * If this is the last field, closes both the data object and the root JSON object.
+ *
+ * @param[in,out] str JSON string buffer to append to
+ * @param[in] str_size Size of the string buffer
+ * @param[in] field_name JSON field name (e.g., "V1", "V2")
+ * @param[in] label Human-readable label (e.g., "Fcode", "State")
+ * @param[in] value Unsigned 16-bit value to append
+ * @param[in] unit Unit of measurement (e.g., "A", "V", "N")
+ * @param[in] is_last Flag indicating if this is the last field (1) or not (0)
  */
 static void inv_fault_recorder_append_field_u16(char *str, size_t str_size,
                                                   const char *field_name,
@@ -105,8 +206,20 @@ static void inv_fault_recorder_append_field_u16(char *str, size_t str_size,
     strncat(str, tempStr, str_size - strlen(str) - 1);
 }
 
-/*
+/**
  * @brief Append signed 16-bit field to JSON string
+ *
+ * Formats and appends a JSON field with a signed 16-bit value to the output string.
+ * The field is formatted as: "field_name": "label*value*unit"
+ * If this is the last field, closes both the data object and the root JSON object.
+ *
+ * @param[in,out] str JSON string buffer to append to
+ * @param[in] str_size Size of the string buffer
+ * @param[in] field_name JSON field name (e.g., "V3", "V4")
+ * @param[in] label Human-readable label (e.g., "Iinv1", "Vc1")
+ * @param[in] value Signed 16-bit value to append
+ * @param[in] unit Unit of measurement (e.g., "A", "V")
+ * @param[in] is_last Flag indicating if this is the last field (1) or not (0)
  */
 static void inv_fault_recorder_append_field_s16(char *str, size_t str_size,
                                                   const char *field_name,
@@ -128,8 +241,18 @@ static void inv_fault_recorder_append_field_s16(char *str, size_t str_size,
     strncat(str, tempStr, str_size - strlen(str) - 1);
 }
 
-/*
+/**
  * @brief Build JSON header with metadata
+ *
+ * Creates the initial JSON structure containing metadata about the fault snapshot
+ * including serial number, timestamp, fault ID, and snapshot index.
+ *
+ * @param[out] str Output buffer for JSON string
+ * @param[in] str_size Size of output buffer
+ * @param[in] tm DateTime structure with timestamp information
+ *
+ * @note This function opens the JSON root object and the "data" object.
+ *       The caller must add data fields and close the objects.
  */
 static void inv_fault_recorder_start_json(char *str, size_t str_size, DateTime tm)
 {
@@ -145,11 +268,19 @@ static void inv_fault_recorder_start_json(char *str, size_t str_size, DateTime t
              gStuSnapshot.id + 1, gStuSnapshot.tail + 1);
 }
 
-/*
+/**
  * @brief Build complete JSON snapshot data
- * @param str Output buffer for JSON string
- * @param str_size Size of output buffer
- * @param idx Snapshot buffer index
+ *
+ * Constructs a complete JSON representation of a fault snapshot including all
+ * measurement fields (fault code, state, currents, voltages, timestamps).
+ * Uses the RTC to get current timestamp and formats all 11 data fields.
+ *
+ * @param[out] str Output buffer for JSON string
+ * @param[in] str_size Size of output buffer
+ * @param[in] idx Snapshot buffer index to format
+ *
+ * @note The output buffer must be large enough to hold the complete JSON structure.
+ *       Recommended minimum size is EVENT_BUFFER_SIZE (500 bytes).
  */
 static void inv_fault_recorder_build_json(char *str, size_t str_size, u16 idx)
 {
@@ -181,10 +312,22 @@ static void inv_fault_recorder_build_json(char *str, size_t str_size, u16 idx)
                                         gStuSnapshot.node[idx].data[ENU_SNAP_UTIME].U, "uS", 1);
 }
 
-/*
+/* ========================================================================
+ * Public Reporting Function Implementations
+ * ======================================================================== */
+
+/**
  * @brief Generate web report with fault snapshot data
- * @param str Output buffer for JSON data
- * @param api Output buffer for API URL
+ *
+ * Prepares a JSON-formatted snapshot for transmission to a web API endpoint.
+ * Constructs both the JSON payload and the API URL. Automatically advances
+ * the tail pointer after successful report generation.
+ *
+ * @param[out] str Output buffer for JSON data (must be at least EVENT_BUFFER_SIZE bytes)
+ * @param[out] api Output buffer for API URL (must be at least 100 bytes)
+ *
+ * @note If buffer is empty, resets head, tail, and increments snapshot ID.
+ *       The API URL is constructed from the server base URL plus "/api/send-event".
  */
 void inv_fault_recorder_web_report(u8 *str, u8 *api)
 {
@@ -207,9 +350,15 @@ void inv_fault_recorder_web_report(u8 *str, u8 *api)
     }
 }
 
-/*
+/**
  * @brief Generate local report with fault snapshot data
- * Transmits snapshot data via command response interface
+ *
+ * Transmits the next snapshot in the buffer via the command response interface.
+ * If the buffer is empty, sends an "Event Buffer is Empty" message.
+ * Automatically advances the tail pointer after successful transmission.
+ *
+ * @note This function uses the internal iEventBuff buffer for JSON formatting.
+ *       When the buffer becomes empty, it resets head/tail pointers and increments the ID.
  */
 void inv_fault_recorder_report(void)
 {
@@ -229,26 +378,40 @@ void inv_fault_recorder_report(void)
     }
 }
 
-/*
+/**
  * @brief Get current snapshot buffer head index
- * @return Current head index value
+ *
+ * Returns the current position of the head pointer in the snapshot buffer.
+ * This indicates the next position where new snapshot data will be written.
+ *
+ * @return Current head index value (0 to SNAP_SHOT_BUFFER_SIZE-1)
  */
 u16 inv_fault_recorder_head_report(void)
 {
     return gStuSnapshot.head;
 }
 
+/* ========================================================================
+ * Command Interface Function Implementations
+ * ======================================================================== */
 
-
-
-/*
+/**
  * @brief Process fault recorder debug commands
- * @param str Command string to process
- * @return 0 if command was recognized and processed, 1 otherwise
  *
- * Supported commands:
- *   - "local": Enable local event log reporting
- *   - "remote": Enable remote event log reporting to web
+ * Handles command-line interface commands for controlling the fault recorder.
+ * Recognizes "local" and "remote" commands to switch reporting modes.
+ *
+ * @param[in] str Command string to process
+ *
+ * @return Command recognition status:
+ *         - 0: Command was recognized and processed
+ *         - 1: Command was not recognized
+ *
+ * @par Supported commands:
+ *      - "local": Enable local event log reporting via serial interface
+ *      - "remote": Enable remote event log reporting to web server
+ *
+ * @note Uses substring matching, so "local" will match any string containing "local"
  */
 u8 inv_fault_recorder_cmd(char *str)
 {
@@ -267,11 +430,16 @@ u8 inv_fault_recorder_cmd(char *str)
     return returnValue;
 }
 
-/*
+/**
  * @brief Display help information for fault recorder commands
+ *
+ * Provides help text for available fault recorder commands via the command interface.
+ *
  * @return Always returns 0
  *
- * Note: This function is currently a placeholder for future help text implementation
+ * @todo Implement help text display with command descriptions and usage examples
+ *
+ * @note This function is currently a placeholder for future help text implementation
  */
 u8 inv_fault_recorder_cmd_help(void)
 {
