@@ -10,321 +10,271 @@
 #include <string.h>
 #include "server.h"
 
+/* Constants */
+#define EVENT_BUFFER_SIZE 500
+#define TEMP_STRING_SIZE 40
+#define SNAPSHOT_THRESHOLD 98
+
+/* Static variables */
 static StuSnapShotType gStuSnapshot;
-static u8 gLocalReport=0;
+static u8 gLocalReport = 0;
+static u8 iEventBuff[EVENT_BUFFER_SIZE];
 
-static void inv_fault_recorder_start_json( u8 *str,DateTime tm);
-static u8 iEventBuff[500];
-volatile u16 tIdx=0;
+/* Static function prototypes */
+static void inv_fault_recorder_start_json(char *str, size_t str_size, DateTime tm);
+static void inv_fault_recorder_append_field_u16(char *str, size_t str_size,
+                                                  const char *field_name,
+                                                  const char *label,
+                                                  u16 value,
+                                                  const char *unit,
+                                                  u8 is_last);
+static void inv_fault_recorder_append_field_s16(char *str, size_t str_size,
+                                                  const char *field_name,
+                                                  const char *label,
+                                                  int16_t value,
+                                                  const char *unit,
+                                                  u8 is_last);
+static void inv_fault_recorder_build_json(char *str, size_t str_size, u16 idx);
 /*
- *
+ * @brief Set data at specified index in the current snapshot
+ * @param index Data field index
+ * @param invData Data value to store
  */
-void inv_fault_recorder_set_data(u16 index,u16 invData)
+void inv_fault_recorder_set_data(u16 index, u16 invData)
 {
-    u16 hIdx=gStuSnapshot.head;
-	if(hIdx<SNAP_SHOT_BUFFER_SIZE)
-	{
-	gStuSnapshot.node[hIdx].data[index].U=invData;
-	}
+    u16 headIdx = gStuSnapshot.head;
 
+    if (headIdx < SNAP_SHOT_BUFFER_SIZE) {
+        gStuSnapshot.node[headIdx].data[index].U = invData;
+    }
 }
 
 /*
- *
+ * @brief Increment snapshot buffer index
+ * @return 1 if successful, 0 if buffer is full
  */
 u8 inv_fault_recorder_inc_idx(void)
 {
-	u8 returnValue=0;
-	if(gStuSnapshot.head<SNAP_SHOT_BUFFER_SIZE)
-	{
-		gStuSnapshot.head++;
-		returnValue=1;
-	}
-	return returnValue;
+    if (gStuSnapshot.head < SNAP_SHOT_BUFFER_SIZE) {
+        gStuSnapshot.head++;
+        return 1;
+    }
+    return 0;
 }
+
 /*
- *
+ * @brief Get fault recorder status
+ * @return 0=idle, 1=remote reporting pending, 2=local reporting ready
  */
 u8 inv_fault_recorder_status(void)
 {
-	u8 returnValue=0;
-	if(0==gLocalReport)
-	{
-	if(gStuSnapshot.head!=0)
-	{
-		returnValue=1;
-	}
-	}
-	else
-	{
-		if(gStuSnapshot.head>=98)
-		{
-			returnValue=2;
-		}
-	}
-	return returnValue;
+    if (gLocalReport == 0) {
+        /* Remote reporting mode */
+        if (gStuSnapshot.head != 0) {
+            return 1;
+        }
+    } else {
+        /* Local reporting mode */
+        if (gStuSnapshot.head >= SNAPSHOT_THRESHOLD) {
+            return 2;
+        }
+    }
+    return 0;
 }
+
+/*
+ * @brief Append unsigned 16-bit field to JSON string
+ */
+static void inv_fault_recorder_append_field_u16(char *str, size_t str_size,
+                                                  const char *field_name,
+                                                  const char *label,
+                                                  u16 value,
+                                                  const char *unit,
+                                                  u8 is_last)
+{
+    char tempStr[TEMP_STRING_SIZE];
+
+    if (is_last) {
+        snprintf(tempStr, sizeof(tempStr), "\"%s\": \"%s*%u*%s\"\r}\r}",
+                 field_name, label, value, unit);
+    } else {
+        snprintf(tempStr, sizeof(tempStr), "\"%s\": \"%s*%u*%s\",\r",
+                 field_name, label, value, unit);
+    }
+
+    strncat(str, tempStr, str_size - strlen(str) - 1);
+}
+
+/*
+ * @brief Append signed 16-bit field to JSON string
+ */
+static void inv_fault_recorder_append_field_s16(char *str, size_t str_size,
+                                                  const char *field_name,
+                                                  const char *label,
+                                                  int16_t value,
+                                                  const char *unit,
+                                                  u8 is_last)
+{
+    char tempStr[TEMP_STRING_SIZE];
+
+    if (is_last) {
+        snprintf(tempStr, sizeof(tempStr), "\"%s\": \"%s*%d*%s\"\r}\r}",
+                 field_name, label, value, unit);
+    } else {
+        snprintf(tempStr, sizeof(tempStr), "\"%s\": \"%s*%d*%s\",\r",
+                 field_name, label, value, unit);
+    }
+
+    strncat(str, tempStr, str_size - strlen(str) - 1);
+}
+
+/*
+ * @brief Build JSON header with metadata
+ */
+static void inv_fault_recorder_start_json(char *str, size_t str_size, DateTime tm)
+{
+    snprintf(str, str_size,
+             "{\r\"serial_number\":\"%s\",\r"
+             "\"date\":\"%04d-%02d-%02d\",\r"
+             "\"time\":\"%02d:%02d:%02d\",\r"
+             "\"fault\":\"%d\",\r"
+             "\"index\":\"%d\",\r"
+             "\"data\":{\r",
+             _serialN, tm.year, tm.month, tm.day,
+             tm.hour, tm.minute, tm.second,
+             gStuSnapshot.id + 1, gStuSnapshot.tail + 1);
+}
+
+/*
+ * @brief Build complete JSON snapshot data
+ * @param str Output buffer for JSON string
+ * @param str_size Size of output buffer
+ * @param idx Snapshot buffer index
+ */
+static void inv_fault_recorder_build_json(char *str, size_t str_size, u16 idx)
+{
+    _rtcFunctionRead(0);
+    inv_fault_recorder_start_json(str, str_size, urtc);
+
+    /* Add all sensor data fields */
+    inv_fault_recorder_append_field_u16(str, str_size, "V1", "Fcode",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_FCODE].U, "N", 0);
+    inv_fault_recorder_append_field_u16(str, str_size, "V2", "State",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_STATE].U, "N", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V3", "Iinv1",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_CU_INV1].S, "A", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V4", "Iinv2",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_CU_INV2].S, "A", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V5", "Ig1",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_CU_G1].S, "A", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V6", "Ig2",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_CU_G2].S, "A", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V7", "Vc1",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_VC1].S, "V", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V8", "Vc2",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_VC2].S, "V", 0);
+    inv_fault_recorder_append_field_s16(str, str_size, "V9", "VDC_FIL",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_VDC_FIL].S, "V", 0);
+    inv_fault_recorder_append_field_u16(str, str_size, "V10", "T_Sec",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_STIME].U, "S", 0);
+    inv_fault_recorder_append_field_u16(str, str_size, "V11", "T_uSec",
+                                        gStuSnapshot.node[idx].data[ENU_SNAP_UTIME].U, "uS", 1);
+}
+
+/*
+ * @brief Generate web report with fault snapshot data
+ * @param str Output buffer for JSON data
+ * @param api Output buffer for API URL
+ */
+void inv_fault_recorder_web_report(u8 *str, u8 *api)
+{
+    char tempStr[TEMP_STRING_SIZE];
+    u16 tailIdx = gStuSnapshot.tail;
+
+    /* Build API URL */
+    server_return_url((u8 *)tempStr);
+    snprintf((char *)api, 100, "%s/api/send-event", tempStr);
+
+    if (gStuSnapshot.head != gStuSnapshot.tail) {
+        /* Build JSON for the current snapshot */
+        inv_fault_recorder_build_json((char *)str, EVENT_BUFFER_SIZE, tailIdx);
+        gStuSnapshot.tail++;
+    } else {
+        /* Reset buffer when empty */
+        gStuSnapshot.head = 0;
+        gStuSnapshot.tail = 0;
+        gStuSnapshot.id++;
+    }
+}
+
+/*
+ * @brief Generate local report with fault snapshot data
+ * Transmits snapshot data via command response interface
+ */
+void inv_fault_recorder_report(void)
+{
+    u16 tailIdx = gStuSnapshot.tail;
+
+    if (gStuSnapshot.head != gStuSnapshot.tail) {
+        /* Build JSON for the current snapshot */
+        inv_fault_recorder_build_json((char *)iEventBuff, EVENT_BUFFER_SIZE, tailIdx);
+        TransmitCMDResponse(iEventBuff);
+        gStuSnapshot.tail++;
+    } else {
+        /* Notify user that buffer is empty */
+        TransmitCMDResponse("\r>Event Buffer is Empty\r");
+        gStuSnapshot.head = 0;
+        gStuSnapshot.tail = 0;
+        gStuSnapshot.id++;
+    }
+}
+
+/*
+ * @brief Get current snapshot buffer head index
+ * @return Current head index value
+ */
+u16 inv_fault_recorder_head_report(void)
+{
+    return gStuSnapshot.head;
+}
+
+
 
 
 /*
+ * @brief Process fault recorder debug commands
+ * @param str Command string to process
+ * @return 0 if command was recognized and processed, 1 otherwise
  *
- * */
-void inv_fault_recorder_web_report(u8 *str,u8 *api)
-{
-
-	int16_t temp=0;
-	u8 tempStr[40];
-
-	tIdx=gStuSnapshot.tail;
-	server_return_url(tempStr);
-	sprintf(api,"%s/api/send-event",tempStr);
-	if(gStuSnapshot.head!=gStuSnapshot.tail)
-	{
-	_rtcFunctionRead(0);
-	inv_fault_recorder_start_json((char*) str, urtc);
-	u16 tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_FCODE].U;
-	sprintf((char *)tempStr,"\"V1\": \"%s*%u*%s\",\r",
-			"Fcode",
-			tmp,
-			"N");
-	strcat((char *)str,(const char *)tempStr);
-	tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_STATE].U;
-	sprintf((char *)tempStr,"\"V2\": \"%s*%u*%s\",\r",
-			"State",
-			tmp,
-			"N");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_INV1].S;
-	sprintf((char *)tempStr,"\"V3\": \"%s*%d*%s\",\r",
-			"Iinv1",
-			temp,
-			"A");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_INV2].S;
-	sprintf((char *)tempStr,"\"V4\": \"%s*%d*%s\",\r",
-			"Iinv2",
-			temp,
-			"A");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_G1].S;
-	sprintf((char *)tempStr,"\"V5\": \"%s*%d*%s\",\r",
-			"Ig1",
-			temp,
-			"A");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_G2].S;
-	sprintf((char *)tempStr,"\"V6\": \"%s*%d*%s\",\r",
-			"Ig2",
-			temp,
-			"A");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_VC1].S;
-	sprintf((char *)tempStr,"\"V7\": \"%s*%d*%s\",\r",
-			"Vc1",
-			temp,
-			"V");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_VC2].S;
-	sprintf(tempStr,"\"V8\": \"%s*%d*%s\",\r",
-			"Vc2",
-			temp,
-			"V");
-	strcat((char *)str,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_VDC_FIL].S;
-	sprintf((char *)tempStr,"\"V9\": \"%s*%d*%s\",\r",
-			"VDC_FIL",
-			temp,
-			"V");
-	strcat((char *)str,(const char *)tempStr);
-	 tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_STIME].U;
-	sprintf(tempStr,"\"V10\": \"%s*%u*%s\",\r",
-			"T_Sec",
-			tmp,
-			"S");
-	strcat((char *)str,(const char *)tempStr);
-	 tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_UTIME].U;
-	sprintf((char *)tempStr,"\"V11\": \"%s*%u*%s\"\r}\r}",
-			"T_uSec",
-			tmp,
-			"uS");
-	strcat((char *)str,(const char *)tempStr);
-
-	gStuSnapshot.tail++;
-	}
-	else
-	{
-		gStuSnapshot.head=0;
-		gStuSnapshot.tail=0;
-		gStuSnapshot.id+=1;
-	}
-}
-
-void inv_fault_recorder_report()
-{
-
-	int16_t temp=0;
-	u8 tempStr[40];
-
-	tIdx=gStuSnapshot.tail;
-
-	if(gStuSnapshot.head!=gStuSnapshot.tail)
-	{
-	_rtcFunctionRead(0);
-	inv_fault_recorder_start_json((char*) iEventBuff, urtc);
-	u16 tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_FCODE].U;
-	sprintf((char *)tempStr,"\"V1\": \"%s*%u*%s\",\r",
-			"Fcode",
-			tmp,
-			"N");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_STATE].U;
-	sprintf((char *)tempStr,"\"V2\": \"%s*%u*%s\",\r",
-			"State",
-			tmp,
-			"N");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_INV1].S;
-	sprintf((char *)tempStr,"\"V3\": \"%s*%d*%s\",\r",
-			"Iinv1",
-			temp,
-			"A");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_INV2].S;
-	sprintf((char *)tempStr,"\"V4\": \"%s*%d*%s\",\r",
-			"Iinv2",
-			temp,
-			"A");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_G1].S;
-	sprintf((char *)tempStr,"\"V5\": \"%s*%d*%s\",\r",
-			"Ig1",
-			temp,
-			"A");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_CU_G2].S;
-	sprintf((char *)tempStr,"\"V6\": \"%s*%d*%s\",\r",
-			"Ig2",
-			temp,
-			"A");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_VC1].S;
-	sprintf((char *)tempStr,"\"V7\": \"%s*%d*%s\",\r",
-			"Vc1",
-			temp,
-			"V");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_VC2].S;
-	sprintf(tempStr,"\"V8\": \"%s*%d*%s\",\r",
-			"Vc2",
-			temp,
-			"V");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	temp=gStuSnapshot.node[tIdx].data[ENU_SNAP_VDC_FIL].S;
-	sprintf((char *)tempStr,"\"V9\": \"%s*%d*%s\",\r",
-			"VDC_FIL",
-			temp,
-			"V");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	 tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_STIME].U;
-	sprintf(tempStr,"\"V10\": \"%s*%u*%s\",\r",
-			"T_Sec",
-			tmp,
-			"S");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	 tmp=gStuSnapshot.node[tIdx].data[ENU_SNAP_UTIME].U;
-	sprintf((char *)tempStr,"\"V11\": \"%s*%u*%s\"\r}\r}",
-			"T_uSec",
-			tmp,
-			"uS");
-	strcat((char *)iEventBuff,(const char *)tempStr);
-	TransmitCMDResponse(iEventBuff);
-	gStuSnapshot.tail++;
-	}
-	else
-	{
-		TransmitCMDResponse("\r>Event Buffer is Empty\r");
-		gStuSnapshot.head=0;
-		gStuSnapshot.tail=0;
-		gStuSnapshot.id+=1;
-	}
-}
-
-static void inv_fault_recorder_start_json( u8 *str,DateTime tm)
-{
-
-  sprintf((char *)str,"{\r\"serial_number\":\"%s\",\r"
-          "\"date\":\"%04d-%02d-%02d\",\r"
-            "\"time\":\"%02d:%02d:%02d\",\r"
-		  "\"fault\":\"%d\",\r"
-		  "\"index\":\"%d\",\r"
-            "\"data\":{\r",_serialN,tm.year,tm.month,tm.day,tm.hour,tm.minute,tm.second,gStuSnapshot.id+1,gStuSnapshot.tail+1);
-}
-
-
-u16 inv_fault_recorder_head_report(void)
-{
-	return gStuSnapshot.head;
-}
-
-
-
-
-/*!
- **************************************************************************************************
- *
- *  @fn         u8 debugCommand( char *str)
- *
- *  @par        This function is for handling debug commands.
- *
- *  @param      None.
- *
- *  @return     None.
- *
- *  @par        Design Info
- *              WCET            : Enter Worst Case Execution Time heres
- *              Sync/Async      : sync
- *
- **************************************************************************************************
+ * Supported commands:
+ *   - "local": Enable local event log reporting
+ *   - "remote": Enable remote event log reporting to web
  */
-u8 inv_fault_recorder_cmd( char *str)
+u8 inv_fault_recorder_cmd(char *str)
 {
-	u8 returnVlaue=1;
+    u8 returnValue = 1;
 
-	// Check if the command is "on"
-	if (strstr((char *)str, "local")) {
-		TransmitCMDResponse("\r>Enable Sending Event Log Locally\r");
-		gLocalReport=1;
-		returnVlaue=0;
-	}
-	if (strstr((char *)str, "remote")) {
-		TransmitCMDResponse("\r>Enable Sending Event Log to Web\r");
-		gLocalReport=0;
-		returnVlaue=0;
-	}
+    if (strstr((char *)str, "local")) {
+        TransmitCMDResponse("\r>Enable Sending Event Log Locally\r");
+        gLocalReport = 1;
+        returnValue = 0;
+    } else if (strstr((char *)str, "remote")) {
+        TransmitCMDResponse("\r>Enable Sending Event Log to Web\r");
+        gLocalReport = 0;
+        returnValue = 0;
+    }
 
-	return returnVlaue;
+    return returnValue;
 }
-/*!
- **************************************************************************************************
- *
- *  @fn         u8 debugHelp( void)
- *
- *  @par        This function is for handling debug commands help.
- *
- *  @param      None.
- *
- *  @return     None.
- *
- *  @par        Design Info
- *              WCET            : Enter Worst Case Execution Time heres
- *              Sync/Async      : sync
- *
- **************************************************************************************************
- */
-u8 inv_fault_recorder_cmd_help( void)
-{
-	static u8 state=0;
-	u8 returnVlaue=0;
 
-	return returnVlaue;
+/*
+ * @brief Display help information for fault recorder commands
+ * @return Always returns 0
+ *
+ * Note: This function is currently a placeholder for future help text implementation
+ */
+u8 inv_fault_recorder_cmd_help(void)
+{
+    /* TODO: Implement help text display */
+    return 0;
 }
