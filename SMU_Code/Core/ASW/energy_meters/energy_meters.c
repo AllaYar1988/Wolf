@@ -6,7 +6,7 @@
  * processing energy data, and managing communication state machine.
  *
  * @date Created on: Oct 16, 2025
- * @author KHAJEHHOD-GD09
+ * @author A. Moazami
  */
 
 #include "energy_meters.h"

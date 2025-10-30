@@ -18,7 +18,7 @@
  * FUTURE EXTENSION: For multiple meters, modify functions to accept device instance
  *
  * @date Created on: Oct 16, 2025
- * @author Allahyar Moazami
+ * @author A. Moazami
  */
 
 #ifndef BSW_HAL_ENERGY_METER_HAL_ENERGY_METER_DLL_H_

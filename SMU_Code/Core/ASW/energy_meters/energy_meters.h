@@ -5,7 +5,7 @@
  * Provides high-level interface for STPM34 energy metering IC operations.
  *
  * @date Created on: Oct 16, 2025
- * @author KHAJEHHOD-GD09
+ * @author A. Moazami
  */
 
 #ifndef ASW_ENERGY_METERS_ENERGY_METERS_H_
