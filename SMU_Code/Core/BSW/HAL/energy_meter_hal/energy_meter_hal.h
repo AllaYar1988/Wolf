@@ -14,29 +14,27 @@
 
 #include "stm32f4xx_hal.h"
 #include "platform.h"
+#include "usart.h"
 
 /* ========================================================================
- * GPIO Definitions
+ * GPIO Definitions - Energy Meter Chip Select
  * ======================================================================== */
 
 /** @brief STPM34 Chip Select GPIO Pin */
-#define uGenerator_STPM_SCS_Pin GPIO_PIN_1
+#define ENERGY_METER_SCS_Pin        GPIO_PIN_1
 
 /** @brief STPM34 Chip Select GPIO Port */
-#define uGenerator_STPM_SCS_GPIO_Port GPIOB
+#define ENERGY_METER_SCS_GPIO_Port  GPIOB
+
+/* Compatibility macros with existing code */
+#define uGenerator_STPM_SCS_Pin       ENERGY_METER_SCS_Pin
+#define uGenerator_STPM_SCS_GPIO_Port ENERGY_METER_SCS_GPIO_Port
 
 /* ========================================================================
- * UART Definitions
+ * UART Definitions - Energy Meter Communication
  * ======================================================================== */
 
-/** @brief UART handle for energy meter communication */
-extern UART_HandleTypeDef huart4;
-
-/** @brief DMA handles for UART4 */
-extern DMA_HandleTypeDef hdma_usart4_tx;
-extern DMA_HandleTypeDef hdma_usart4_rx;
-
-/** @brief Energy meter UART interface */
+/** @brief Energy meter UART interface (maps to huart4 from usart.h) */
 #define ENERGY_METER_UART huart4
 
 /* ========================================================================
@@ -157,13 +155,11 @@ typedef struct {
  * ======================================================================== */
 
 /**
- * @brief Initialize energy meter hardware (UART4 and GPIO)
+ * @brief Initialize energy meter hardware (calls GPIO and UART init)
+ *
+ * This is a convenience function that calls the appropriate initialization
+ * functions from gpio.c and usart.c
  */
 void energy_meters_hal_init(void);
-
-/**
- * @brief Enable UART4 DMA for energy meter communication
- */
-void energy_meters_hal_enable_dma(void);
 
 #endif /* BSW_HAL_ENERGY_METER_HAL_ENERGY_METER_HAL_H_ */
