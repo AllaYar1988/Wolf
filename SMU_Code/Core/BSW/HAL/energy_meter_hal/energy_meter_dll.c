@@ -28,6 +28,9 @@ static u16 gRxByteCount = 0;
 /** @brief DMA reception state flag */
 static u8 gRxInitialized = 0;
 
+/** @brief Flag indicating data was read and buffer should be cleared */
+static u8 gDataReadFlag = 0;
+
 /* ========================================================================
  * Public Function Implementations
  * ======================================================================== */
@@ -103,10 +106,27 @@ void energy_meter_dll_receive_init(void)
  * @return Number of bytes received, 0 if no data available
  *
  * @note This function should be called periodically to poll for received data
+ * @note After application reads data via get_rx_buffer(), next call will clear and restart DMA
  */
 u16 energy_meter_dll_receive(void)
 {
     u16 returnValue = 0;
+
+    /* If previous data was read, clear buffer and restart DMA for next reception */
+    if (gDataReadFlag) {
+        /* Stop current DMA reception */
+        HAL_UART_DMAStop(&ENERGY_METER_UART);
+
+        /* Clear the buffer for next reception */
+        memset(gEnergyRxData, 0, ENERGY_METER_BUFFER_SIZE);
+
+        /* Restart DMA reception */
+        HAL_UART_Receive_DMA(&ENERGY_METER_UART, gEnergyRxData, ENERGY_METER_BUFFER_SIZE);
+
+        /* Clear the flag and byte count */
+        gDataReadFlag = 0;
+        gRxByteCount = 0;
+    }
 
     /* Check if UART IDLE flag is set (frame completed) */
     if (__HAL_UART_GET_FLAG(&ENERGY_METER_UART, UART_FLAG_IDLE))
@@ -123,9 +143,12 @@ u16 energy_meter_dll_receive(void)
             gRxByteCount = ENERGY_METER_BUFFER_SIZE -
                           __HAL_DMA_GET_COUNTER(ENERGY_METER_UART.hdmarx);
             returnValue = gRxByteCount;
-        }
 
-        /* Note: DMA continues in circular mode, no need to restart */
+            /* Set flag to indicate data is ready to be read */
+            if (gRxByteCount > 0) {
+                gDataReadFlag = 1;
+            }
+        }
     }
 
     return returnValue;
