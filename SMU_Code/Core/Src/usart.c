@@ -165,25 +165,24 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
     /* USER CODE END UART4_MspInit 0 */
       /* UART4 clock enable */
-   /*   __HAL_RCC_UART4_CLK_ENABLE();*/
+      __HAL_RCC_UART4_CLK_ENABLE();
 
       __HAL_RCC_GPIOA_CLK_ENABLE();
-      __HAL_RCC_GPIOC_CLK_ENABLE();
       /**UART4 GPIO Configuration
        PA0-WKUP     ------> UART4_TX
        PA1     ------> UART4_RX
        */
-     /*  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
-       GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-       GPIO_InitStruct.Pull = GPIO_NOPULL;
-       GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-       GPIO_InitStruct.Alternate = GPIO_AF8_UART4;
-       HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);*/
+      GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+      GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+      GPIO_InitStruct.Pull = GPIO_NOPULL;
+      GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+      GPIO_InitStruct.Alternate = GPIO_AF8_UART4;
+      HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 
       /* UART4 DMA Init */
       /* UART4_RX Init */
-     /* hdma_usart4_rx.Instance = DMA1_Stream2;
+      hdma_usart4_rx.Instance = DMA1_Stream2;
       hdma_usart4_rx.Init.Channel = DMA_CHANNEL_4;
       hdma_usart4_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
       hdma_usart4_rx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -196,12 +195,12 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
       if (HAL_DMA_Init(&hdma_usart4_rx) != HAL_OK)
       {
         Error_Handler();
-      }*/
+      }
 
-     // __HAL_LINKDMA(uartHandle,hdmarx,hdma_usart4_rx);
+      __HAL_LINKDMA(uartHandle,hdmarx,hdma_usart4_rx);
 
       /* UART4_TX Init */
-     /* hdma_usart4_tx.Instance = DMA1_Stream4;
+      hdma_usart4_tx.Instance = DMA1_Stream4;
       hdma_usart4_tx.Init.Channel = DMA_CHANNEL_4;
       hdma_usart4_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
       hdma_usart4_tx.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -216,7 +215,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
         Error_Handler();
       }
 
-      __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart4_tx);*/
+      __HAL_LINKDMA(uartHandle,hdmatx,hdma_usart4_tx);
 
     /* USER CODE BEGIN UART4_MspInit 1 */
 

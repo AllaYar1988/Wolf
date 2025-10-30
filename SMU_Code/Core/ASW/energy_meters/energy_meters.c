@@ -1,82 +1,273 @@
-/*
- * energy_meters.c
+/**
+ * @file energy_meters.c
+ * @brief STPM34 Energy Meter Application Layer
  *
- *  Created on: Oct 16, 2025
- *      Author: KHAJEHHOD-GD09
+ * Implements high-level energy meter functions including reading registers,
+ * processing energy data, and managing communication state machine.
+ *
+ * @date Created on: Oct 16, 2025
+ * @author KHAJEHHOD-GD09
  */
+
 #include "energy_meters.h"
 #include "crc.h"
 #include "energy_meter_hal.h"
 #include "energy_meter_dll.h"
+#include <string.h>
+
+/* ========================================================================
+ * Private Variables
+ * ======================================================================== */
+
+/** @brief Timeout counter for energy meter operations */
+static u32 gEnergyMeterTimeout = 0;
+
+/** @brief Last received data from STPM34 */
+static u32 gLastReadValue = 0;
+
+/** @brief Current register address being read */
+static u8 gCurrentRegister = 0;
+
+/* ========================================================================
+ * Static Function Prototypes
+ * ======================================================================== */
 
 static u8 energy_meters_send_read_req(u8 addr);
-static u8 energy_meters_process(void);
-static u32 gEnergyMeterTimeout=0;
+static u8 energy_meters_send_write_req(u8 addr, u32 value);
+static u8 energy_meters_process_response(void);
+static u32 energy_meters_parse_response(u8 *rxBuf);
 
+/* ========================================================================
+ * Public Function Implementations
+ * ======================================================================== */
 
+/**
+ * @brief Main energy meter handler state machine
+ *
+ * Implements state machine for periodic energy meter communication.
+ * Call this function periodically (e.g., every 10ms).
+ */
 void energy_meters_handler(void)
 {
-	static EnuEnrgyMeterState state=ENU_EM_INIT;
+    static EnuEnrgyMeterState state = ENU_EM_INIT;
 
-	switch(state)
-	{
-	case ENU_EM_INIT:
-		energy_meters_hal_init();
-		state=ENU_EM_SEND_READ_REQ;
-		break;
-	case ENU_EM_SEND_READ_REQ:
-		//ENER_GEN_CS(GPIO_PIN_SET)
-		HAL_GPIO_WritePin(uGenerator_STPM_SCS_GPIO_Port, uGenerator_STPM_SCS_Pin, GPIO_PIN_SET);
+    switch(state)
+    {
+    case ENU_EM_INIT:
+        /* Initialize hardware */
+        energy_meters_hal_init();
 
-		energy_meters_send_read_req(0x05);
-		state=ENU_EM_WAIT_FOR_RESPONSE;
-		break;
+        /* Initialize DMA reception */
+        energy_meter_dll_receive_init();
 
-	case ENU_EM_WAIT_FOR_RESPONSE:
-		//ENER_GEN_CS(GPIO_PIN_RESET)
-		HAL_GPIO_WritePin(uGenerator_STPM_SCS_GPIO_Port, uGenerator_STPM_SCS_Pin, GPIO_PIN_RESET);
-		u8 temp=energy_meters_process();
-		if(temp==1)
-		{
-			state=ENU_EM_SEND_READ_REQ;
-		}
-		break;
-	case ENU_EM_STOP:
-		break;
-	}
+        /* Start with register 0x05 (DSP_CR5) */
+        gCurrentRegister = STPM34_REG_DSP_CR5;
+
+        state = ENU_EM_SEND_READ_REQ;
+        break;
+
+    case ENU_EM_SEND_READ_REQ:
+        /* Set chip select LOW (active) */
+        HAL_GPIO_WritePin(uGenerator_STPM_SCS_GPIO_Port,
+                         uGenerator_STPM_SCS_Pin, GPIO_PIN_RESET);
+
+        /* Send read request */
+        energy_meters_send_read_req(gCurrentRegister);
+
+        /* Reset timeout counter */
+        gEnergyMeterTimeout = 0;
+
+        state = ENU_EM_WAIT_FOR_RESPONSE;
+        break;
+
+    case ENU_EM_WAIT_FOR_RESPONSE:
+        /* Process response from STPM34 */
+        if (energy_meters_process_response())
+        {
+            /* Set chip select HIGH (inactive) */
+            HAL_GPIO_WritePin(uGenerator_STPM_SCS_GPIO_Port,
+                             uGenerator_STPM_SCS_Pin, GPIO_PIN_SET);
+
+            /* Cycle through different registers */
+            gCurrentRegister++;
+            if (gCurrentRegister > STPM34_REG_DSP_CR11) {
+                gCurrentRegister = STPM34_REG_DSP_CR5;
+            }
+
+            state = ENU_EM_SEND_READ_REQ;
+        }
+        break;
+
+    case ENU_EM_STOP:
+        /* Idle state - do nothing */
+        break;
+    }
 }
 
+/**
+ * @brief Read STPM34 register value
+ *
+ * @param[in] addr Register address to read
+ * @param[out] value Pointer to store read value
+ * @return 1 if successful, 0 if failed
+ */
+u8 energy_meters_read_register(u8 addr, u32 *value)
+{
+    u8 txBuf[STPM34_FRAME_SIZE];
+    u8 returnValue = 0;
 
+    /* Build read command frame */
+    txBuf[0] = addr | STPM34_READ_BIT;  /* Address with read bit set */
+    txBuf[1] = 0xFF;  /* Dummy bytes for response */
+    txBuf[2] = 0xFF;
+    txBuf[3] = 0xFF;
 
+    /* Calculate CRC for the frame */
+    txBuf[4] = crc_stpm3x(txBuf, 4);
+
+    /* Send frame via DLL */
+    energy_meter_dll_send(txBuf, STPM34_FRAME_SIZE);
+
+    /* Value will be available in next transaction */
+    if (value != NULL) {
+        *value = gLastReadValue;
+        returnValue = 1;
+    }
+
+    return returnValue;
+}
+
+/**
+ * @brief Write value to STPM34 register
+ *
+ * @param[in] addr Register address to write
+ * @param[in] value Value to write (24-bit)
+ * @return 1 if successful, 0 if failed
+ */
+u8 energy_meters_write_register(u8 addr, u32 value)
+{
+    return energy_meters_send_write_req(addr, value);
+}
+
+/**
+ * @brief Get last read value from STPM34
+ *
+ * @return Last value read from STPM34
+ */
+u32 energy_meters_get_last_value(void)
+{
+    return gLastReadValue;
+}
+
+/* ========================================================================
+ * Static Function Implementations
+ * ======================================================================== */
+
+/**
+ * @brief Send read request to STPM34
+ *
+ * @param[in] addr Register address to read
+ * @return Always returns 1
+ */
 static u8 energy_meters_send_read_req(u8 addr)
 {
-	u8 returnValue=0;
-	u8 txBuf[20];
-    txBuf[0] = addr | 0x80; // read bit
-    txBuf[1] = txBuf[2] = txBuf[3] = txBuf[4] = 0xFF;
-     //(void) addr;
+    u8 txBuf[STPM34_FRAME_SIZE];
 
-    //uint8_t crc = crc_stmp3x(txBuf, 4);
-    //if (crc != rxBuf[4])
-    //{
-     //   printf("CRC error!\r\n");
-     //   return 0;
-    //}
+    /* Build read command frame */
+    txBuf[0] = addr | STPM34_READ_BIT;  /* Address with read bit set */
+    txBuf[1] = 0xFF;  /* Dummy bytes */
+    txBuf[2] = 0xFF;
+    txBuf[3] = 0xFF;
 
-    //uint32_t val = ((uint32_t)rxBuf[1] << 16) | ((uint32_t)rxBuf[2] << 8) | rxBuf[3];
-    //return val;
-     energy_meter_dll_send(txBuf,5);
-     return returnValue;
+    /* Calculate and add CRC */
+    txBuf[4] = crc_stpm3x(txBuf, 4);
+
+    /* Send via DLL */
+    energy_meter_dll_send(txBuf, STPM34_FRAME_SIZE);
+
+    return 1;
 }
 
-static u8 energy_meters_process(void)
+/**
+ * @brief Send write request to STPM34
+ *
+ * @param[in] addr Register address to write
+ * @param[in] value 24-bit value to write
+ * @return Always returns 1
+ */
+static u8 energy_meters_send_write_req(u8 addr, u32 value)
 {
-	u8 returnValue=0;
-	if(gEnergyMeterTimeout++>ENERGY_METER_TIMEOUT)
-	{
-		gEnergyMeterTimeout=0;
-		returnValue=1;
-	}
+    u8 txBuf[STPM34_FRAME_SIZE];
 
-	return returnValue;
+    /* Build write command frame */
+    txBuf[0] = addr & (~STPM34_READ_BIT);  /* Address with read bit clear */
+    txBuf[1] = (value >> 16) & 0xFF;       /* MSB */
+    txBuf[2] = (value >> 8) & 0xFF;        /* Mid byte */
+    txBuf[3] = value & 0xFF;                /* LSB */
+
+    /* Calculate and add CRC */
+    txBuf[4] = crc_stpm3x(txBuf, 4);
+
+    /* Send via DLL */
+    energy_meter_dll_send(txBuf, STPM34_FRAME_SIZE);
+
+    return 1;
+}
+
+/**
+ * @brief Process response from STPM34
+ *
+ * Checks for received data via DLL, validates CRC, and extracts value.
+ *
+ * @return 1 if valid response received and timeout, 0 otherwise
+ */
+static u8 energy_meters_process_response(void)
+{
+    u8 returnValue = 0;
+    u16 bytesReceived;
+
+    /* Check for received data */
+    bytesReceived = energy_meter_dll_receive();
+
+    if (bytesReceived >= STPM34_FRAME_SIZE)
+    {
+        u8 *rxBuf = energy_meter_dll_get_rx_buffer();
+
+        /* Verify CRC */
+        u8 receivedCrc = rxBuf[4];
+        u8 calculatedCrc = crc_stpm3x(rxBuf, 4);
+
+        if (receivedCrc == calculatedCrc)
+        {
+            /* Parse and store the 24-bit value */
+            gLastReadValue = energy_meters_parse_response(rxBuf);
+        }
+    }
+
+    /* Check timeout */
+    if (gEnergyMeterTimeout++ > ENERGY_METER_TIMEOUT)
+    {
+        gEnergyMeterTimeout = 0;
+        returnValue = 1;
+    }
+
+    return returnValue;
+}
+
+/**
+ * @brief Parse STPM34 response frame
+ *
+ * Extracts 24-bit data value from response frame.
+ *
+ * @param[in] rxBuf Pointer to received buffer (must be at least 5 bytes)
+ * @return Extracted 24-bit value as 32-bit integer
+ */
+static u32 energy_meters_parse_response(u8 *rxBuf)
+{
+    u32 value;
+
+    /* Extract 24-bit value from bytes 1-3 */
+    value = ((u32)rxBuf[1] << 16) | ((u32)rxBuf[2] << 8) | rxBuf[3];
+
+    return value;
 }
