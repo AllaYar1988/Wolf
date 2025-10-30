@@ -28,6 +28,15 @@ static u16 gRxByteCount = 0;
 /** @brief DMA reception state flag */
 static u8 gRxInitialized = 0;
 
+/** @brief Flag indicating data was read and buffer should be cleared */
+static u8 gDataReadFlag = 0;
+
+/** @brief TX buffer to ensure data persists during DMA transmission */
+static u8 gEnergyTxData[STPM34_FRAME_SIZE];
+
+/** @brief Flag indicating TX is in progress */
+static volatile u8 gTxBusy = 0;
+
 /* ========================================================================
  * Public Function Implementations
  * ======================================================================== */
@@ -40,13 +49,24 @@ static u8 gRxInitialized = 0;
  * is called.
  *
  * @param[in] msg Pointer to message buffer
- * @param[in] size Size of message in bytes
+ * @param[in] size Size of message in bytes (max STPM34_FRAME_SIZE)
  *
  * @note Chip select timing is handled by DLL layer for proper protocol
+ * @note Data is copied to internal buffer to ensure it persists during DMA
  * @note For multiple meter support, add device instance parameter
  */
 void energy_meter_dll_transaction_send(u8 *msg, u16 size)
 {
+    HAL_StatusTypeDef status;
+
+    /* Validate size */
+    if (size > STPM34_FRAME_SIZE) {
+        size = STPM34_FRAME_SIZE;
+    }
+
+    /* Copy data to internal TX buffer (DMA needs persistent buffer) */
+    memcpy(gEnergyTxData, msg, size);
+
     /* Assert chip select LOW (select device) */
     ENERGY_METER_CS_SELECT();
 
@@ -54,11 +74,24 @@ void energy_meter_dll_transaction_send(u8 *msg, u16 size)
     /* (typically 1-2 microseconds, but depends on hardware) */
     for (volatile int i = 0; i < 10; i++);
 
-    /* Ensure UART is in ready state */
-    ENERGY_METER_UART.gState = HAL_UART_STATE_READY;
+    /* Wait for UART to be ready (with timeout) */
+    uint32_t timeout = 1000; /* 1000 iterations */
+    while (ENERGY_METER_UART.gState != HAL_UART_STATE_READY && timeout > 0) {
+        timeout--;
+    }
 
-    /* Transmit data via DMA */
-    HAL_UART_Transmit_DMA(&ENERGY_METER_UART, msg, size);
+    /* If still not ready, force it (last resort) */
+    if (ENERGY_METER_UART.gState != HAL_UART_STATE_READY) {
+        ENERGY_METER_UART.gState = HAL_UART_STATE_READY;
+    }
+
+    /* Transmit data via DMA using internal buffer */
+    status = HAL_UART_Transmit_DMA(&ENERGY_METER_UART, gEnergyTxData, size);
+
+    /* Mark TX as busy if transmission started successfully */
+    if (status == HAL_OK) {
+        gTxBusy = 1;
+    }
 }
 
 /**
@@ -73,6 +106,9 @@ void energy_meter_dll_transaction_end(void)
 {
     /* De-assert chip select HIGH (deselect device) */
     ENERGY_METER_CS_DESELECT();
+
+    /* Clear TX busy flag (transaction is complete) */
+    gTxBusy = 0;
 }
 
 /**
@@ -103,10 +139,27 @@ void energy_meter_dll_receive_init(void)
  * @return Number of bytes received, 0 if no data available
  *
  * @note This function should be called periodically to poll for received data
+ * @note After application reads data via get_rx_buffer(), next call will clear and restart DMA
  */
 u16 energy_meter_dll_receive(void)
 {
     u16 returnValue = 0;
+
+    /* If previous data was read, clear buffer and restart DMA for next reception */
+    if (gDataReadFlag) {
+        /* Stop current DMA reception */
+        HAL_UART_DMAStop(&ENERGY_METER_UART);
+
+        /* Clear the buffer for next reception */
+        memset(gEnergyRxData, 0, ENERGY_METER_BUFFER_SIZE);
+
+        /* Restart DMA reception */
+        HAL_UART_Receive_DMA(&ENERGY_METER_UART, gEnergyRxData, ENERGY_METER_BUFFER_SIZE);
+
+        /* Clear the flag and byte count */
+        gDataReadFlag = 0;
+        gRxByteCount = 0;
+    }
 
     /* Check if UART IDLE flag is set (frame completed) */
     if (__HAL_UART_GET_FLAG(&ENERGY_METER_UART, UART_FLAG_IDLE))
@@ -123,9 +176,12 @@ u16 energy_meter_dll_receive(void)
             gRxByteCount = ENERGY_METER_BUFFER_SIZE -
                           __HAL_DMA_GET_COUNTER(ENERGY_METER_UART.hdmarx);
             returnValue = gRxByteCount;
-        }
 
-        /* Note: DMA continues in circular mode, no need to restart */
+            /* Set flag to indicate data is ready to be read */
+            if (gRxByteCount > 0) {
+                gDataReadFlag = 1;
+            }
+        }
     }
 
     return returnValue;
