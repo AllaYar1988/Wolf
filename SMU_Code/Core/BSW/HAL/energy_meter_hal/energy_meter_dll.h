@@ -87,4 +87,14 @@ u8* energy_meter_dll_get_rx_buffer(void);
  */
 u16 energy_meter_dll_get_rx_count(void);
 
+/**
+ * @brief Get DMA transmission statistics (for debugging)
+ *
+ * Returns counters that help debug DMA transmission issues.
+ *
+ * @param[out] tx_attempts Total number of transmission attempts (can be NULL)
+ * @param[out] tx_success Number of successful HAL_UART_Transmit_DMA calls (can be NULL)
+ */
+void energy_meter_dll_get_tx_stats(u32 *tx_attempts, u32 *tx_success);
+
 #endif /* BSW_HAL_ENERGY_METER_HAL_ENERGY_METER_DLL_H_ */
