@@ -37,6 +37,12 @@ static u8 gEnergyTxData[STPM34_FRAME_SIZE];
 /** @brief Flag indicating TX is in progress */
 static volatile u8 gTxBusy = 0;
 
+/** @brief Counter for transmission attempts (for debugging) */
+static volatile u32 gTxAttemptCount = 0;
+
+/** @brief Counter for successful transmissions (for debugging) */
+static volatile u32 gTxSuccessCount = 0;
+
 /* ========================================================================
  * Public Function Implementations
  * ======================================================================== */
@@ -59,6 +65,9 @@ void energy_meter_dll_transaction_send(u8 *msg, u16 size)
 {
     HAL_StatusTypeDef status;
 
+    /* Increment attempt counter for debugging */
+    gTxAttemptCount++;
+
     /* Validate size */
     if (size > STPM34_FRAME_SIZE) {
         size = STPM34_FRAME_SIZE;
@@ -74,22 +83,30 @@ void energy_meter_dll_transaction_send(u8 *msg, u16 size)
     /* (typically 1-2 microseconds, but depends on hardware) */
     for (volatile int i = 0; i < 10; i++);
 
-    /* Wait for UART to be ready (with timeout) */
-    uint32_t timeout = 1000; /* 1000 iterations */
-    while (ENERGY_METER_UART.gState != HAL_UART_STATE_READY && timeout > 0) {
-        timeout--;
-    }
+    /* Abort any ongoing DMA transmission to ensure clean state */
+    HAL_UART_AbortTransmit(&ENERGY_METER_UART);
 
-    /* If still not ready, force it (last resort) */
-    if (ENERGY_METER_UART.gState != HAL_UART_STATE_READY) {
-        ENERGY_METER_UART.gState = HAL_UART_STATE_READY;
-    }
+    /* Wait a bit for abort to complete */
+    for (volatile int i = 0; i < 100; i++);
+
+    /* Force UART to ready state for new transmission */
+    ENERGY_METER_UART.gState = HAL_UART_STATE_READY;
+
+    /* Clear any error flags in UART status register */
+    __HAL_UART_CLEAR_PEFLAG(&ENERGY_METER_UART);
+    __HAL_UART_CLEAR_FEFLAG(&ENERGY_METER_UART);
+    __HAL_UART_CLEAR_NEFLAG(&ENERGY_METER_UART);
+    __HAL_UART_CLEAR_OREFLAG(&ENERGY_METER_UART);
 
     /* Transmit data via DMA using internal buffer */
     status = HAL_UART_Transmit_DMA(&ENERGY_METER_UART, gEnergyTxData, size);
 
-    /* Mark TX as busy if transmission started successfully */
+    /* Track status */
     if (status == HAL_OK) {
+        gTxSuccessCount++;
+        gTxBusy = 1;
+    } else {
+        /* Transmission failed - still mark as busy but it will timeout */
         gTxBusy = 1;
     }
 }
@@ -212,4 +229,24 @@ u8* energy_meter_dll_get_rx_buffer(void)
 u16 energy_meter_dll_get_rx_count(void)
 {
     return gRxByteCount;
+}
+
+/**
+ * @brief Get DMA transmission statistics (for debugging)
+ *
+ * Returns counters that help debug DMA transmission issues.
+ * Useful to check if HAL_UART_Transmit_DMA is being called and succeeding.
+ *
+ * @param[out] tx_attempts Total number of transmission attempts (can be NULL)
+ * @param[out] tx_success Number of successful HAL_UART_Transmit_DMA calls (can be NULL)
+ */
+void energy_meter_dll_get_tx_stats(u32 *tx_attempts, u32 *tx_success)
+{
+    if (tx_attempts != NULL) {
+        *tx_attempts = gTxAttemptCount;
+    }
+
+    if (tx_success != NULL) {
+        *tx_success = gTxSuccessCount;
+    }
 }
