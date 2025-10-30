@@ -7,7 +7,7 @@
  * functions provided by gpio.c and usart.c.
  *
  * @date Created on: Oct 16, 2025
- * @author Allahyar Moazami
+ * @author A. Moazami
  */
 
 #include "energy_meter_hal.h"

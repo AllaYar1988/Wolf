@@ -6,7 +6,7 @@
  * frame transmission, reception with DMA, and data buffering.
  *
  * @date Created on: Oct 16, 2025
- * @author Allahyar Moazami
+ * @author A. Moazami
  */
 
 #include "energy_meter_dll.h"
