@@ -26,8 +26,8 @@
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart3;
+UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart6;
-
 
 DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
@@ -96,19 +96,20 @@ void MX_USART3_UART_Init(void)
   /* USER CODE END USART3_Init 2 */
 
 }
-/* USART4 init function */
+/* UART4 init function */
 
-void MX_USART4_UART_Init(void)
+
+void MX_UART4_UART_Init(void)
 {
 
-  /* USER CODE BEGIN USART4_Init 0 */
+  /* USER CODE BEGIN UART4_Init 0 */
 
-  /* USER CODE END USART4_Init 0 */
+  /* USER CODE END UART4_Init 0 */
 
-  /* USER CODE BEGIN USART4_Init 1 */
+  /* USER CODE BEGIN UART4_Init 1 */
 
-  /* USER CODE END USART4_Init 1 */
-  huart4.Instance = USART4;
+  /* USER CODE END UART4_Init 1 */
+  huart4.Instance = UART4;
   huart4.Init.BaudRate = 9600;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
@@ -122,9 +123,9 @@ void MX_USART4_UART_Init(void)
   }
   /* USER CODE BEGIN USART4_Init 2 */
 
-  /* USER CODE END USART4_Init 2 */
+  /* USER CODE END UART4_Init 2 */
 
-//}
+}
 /* USART6 init function */
 
 void MX_USART6_UART_Init(void)

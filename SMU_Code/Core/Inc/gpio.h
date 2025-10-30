@@ -40,6 +40,11 @@ void MX_GPIO_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
+/**
+ * @brief Initialize GPIO for energy meter chip select (PB1)
+ */
+void MX_EnergyMeter_GPIO_Init(void);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
