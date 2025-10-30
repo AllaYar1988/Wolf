@@ -33,23 +33,46 @@ static u8 gRxInitialized = 0;
  * ======================================================================== */
 
 /**
- * @brief Send data to energy meter via UART with DMA
+ * @brief Start transaction and send data to energy meter
  *
- * Transmits data to the STPM34 energy meter using DMA.
- * Ensures UART is ready before starting transmission.
+ * Asserts chip select LOW (active), then transmits data to the STPM34
+ * energy meter using DMA. Chip select remains LOW until transaction_end()
+ * is called.
  *
  * @param[in] msg Pointer to message buffer
  * @param[in] size Size of message in bytes
  *
- * @note This function blocks briefly to ensure UART is ready
+ * @note Chip select timing is handled by DLL layer for proper protocol
+ * @note For multiple meter support, add device instance parameter
  */
-void energy_meter_dll_send(u8 *msg, u16 size)
+void energy_meter_dll_transaction_send(u8 *msg, u16 size)
 {
+    /* Assert chip select LOW (select device) */
+    ENERGY_METER_CS_SELECT();
+
+    /* Small delay to ensure chip select is stable before transmission */
+    /* (typically 1-2 microseconds, but depends on hardware) */
+    for (volatile int i = 0; i < 10; i++);
+
     /* Ensure UART is in ready state */
     ENERGY_METER_UART.gState = HAL_UART_STATE_READY;
 
     /* Transmit data via DMA */
     HAL_UART_Transmit_DMA(&ENERGY_METER_UART, msg, size);
+}
+
+/**
+ * @brief End transaction and deselect energy meter
+ *
+ * De-asserts chip select HIGH (inactive) to end the communication transaction.
+ * Should be called after receiving response or on timeout.
+ *
+ * @note For multiple meter support, add device instance parameter
+ */
+void energy_meter_dll_transaction_end(void)
+{
+    /* De-assert chip select HIGH (deselect device) */
+    ENERGY_METER_CS_DESELECT();
 }
 
 /**
