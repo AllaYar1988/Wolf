@@ -171,4 +171,27 @@ void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 2 */
 
+/**
+ * @brief Initialize GPIO for energy meter chip select
+ *
+ * Configures PB1 as output for STPM34 chip select control
+ */
+void MX_EnergyMeter_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* Enable GPIOB clock */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /* Configure GPIO pin : PB1 (Energy Meter Chip Select) */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Set chip select high (inactive) initially */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+}
+
 /* USER CODE END 2 */
