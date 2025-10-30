@@ -5,6 +5,27 @@
  * This module provides hardware abstraction for the STPM34 energy metering IC.
  * Communication is via UART4 with DMA support.
  *
+ * CURRENT DESIGN: Single energy meter instance
+ * FUTURE EXTENSION: For multiple energy meters, use the following pattern:
+ *
+ * @code
+ * // Define energy meter device structure
+ * typedef struct {
+ *     GPIO_TypeDef* cs_port;          // Chip select port
+ *     uint16_t cs_pin;                 // Chip select pin
+ *     UART_HandleTypeDef* uart;        // UART handle
+ *     uint8_t device_id;               // Device identifier
+ * } EnergyMeterDevice_t;
+ *
+ * // Create instances for each meter
+ * EnergyMeterDevice_t meter1 = {GPIOB, GPIO_PIN_1, &huart4, 0};
+ * EnergyMeterDevice_t meter2 = {GPIOB, GPIO_PIN_2, &huart5, 1};
+ *
+ * // Modify DLL functions to accept device pointer
+ * void energy_meter_dll_transaction_send(EnergyMeterDevice_t* dev, u8* msg, u16 size);
+ * void energy_meter_dll_transaction_end(EnergyMeterDevice_t* dev);
+ * @endcode
+ *
  * @date Created on: Oct 16, 2025
  * @author Allahyar Moazami
  */
@@ -29,6 +50,18 @@
 /* Compatibility macros with existing code */
 #define uGenerator_STPM_SCS_Pin       ENERGY_METER_SCS_Pin
 #define uGenerator_STPM_SCS_GPIO_Port ENERGY_METER_SCS_GPIO_Port
+
+/* ========================================================================
+ * Chip Select Control Macros
+ * ======================================================================== */
+
+/** @brief Select energy meter (assert chip select LOW - active) */
+#define ENERGY_METER_CS_SELECT()   \
+    HAL_GPIO_WritePin(ENERGY_METER_SCS_GPIO_Port, ENERGY_METER_SCS_Pin, GPIO_PIN_RESET)
+
+/** @brief Deselect energy meter (de-assert chip select HIGH - inactive) */
+#define ENERGY_METER_CS_DESELECT() \
+    HAL_GPIO_WritePin(ENERGY_METER_SCS_GPIO_Port, ENERGY_METER_SCS_Pin, GPIO_PIN_SET)
 
 /* ========================================================================
  * UART Definitions - Energy Meter Communication

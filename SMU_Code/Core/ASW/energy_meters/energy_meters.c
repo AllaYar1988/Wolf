@@ -67,11 +67,7 @@ void energy_meters_handler(void)
         break;
 
     case ENU_EM_SEND_READ_REQ:
-        /* Set chip select LOW (active) */
-        HAL_GPIO_WritePin(uGenerator_STPM_SCS_GPIO_Port,
-                         uGenerator_STPM_SCS_Pin, GPIO_PIN_RESET);
-
-        /* Send read request */
+        /* Send read request (chip select handled by DLL layer) */
         energy_meters_send_read_req(gCurrentRegister);
 
         /* Reset timeout counter */
@@ -84,9 +80,8 @@ void energy_meters_handler(void)
         /* Process response from STPM34 */
         if (energy_meters_process_response())
         {
-            /* Set chip select HIGH (inactive) */
-            HAL_GPIO_WritePin(uGenerator_STPM_SCS_GPIO_Port,
-                             uGenerator_STPM_SCS_Pin, GPIO_PIN_SET);
+            /* End transaction (chip select handled by DLL layer) */
+            energy_meter_dll_transaction_end();
 
             /* Cycle through different registers */
             gCurrentRegister++;
@@ -166,6 +161,9 @@ u32 energy_meters_get_last_value(void)
 /**
  * @brief Send read request to STPM34
  *
+ * Builds read command frame and sends via DLL layer.
+ * Chip select is handled by DLL transaction functions.
+ *
  * @param[in] addr Register address to read
  * @return Always returns 1
  */
@@ -182,8 +180,8 @@ static u8 energy_meters_send_read_req(u8 addr)
     /* Calculate and add CRC */
     txBuf[4] = crc_stpm3x(txBuf, 4);
 
-    /* Send via DLL */
-    energy_meter_dll_send(txBuf, STPM34_FRAME_SIZE);
+    /* Send via DLL (chip select handled by DLL) */
+    energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
 
     return 1;
 }
@@ -191,9 +189,14 @@ static u8 energy_meters_send_read_req(u8 addr)
 /**
  * @brief Send write request to STPM34
  *
+ * Builds write command frame and sends via DLL layer.
+ * Chip select is handled by DLL transaction functions.
+ *
  * @param[in] addr Register address to write
  * @param[in] value 24-bit value to write
  * @return Always returns 1
+ *
+ * @note Caller should call energy_meter_dll_transaction_end() after write completes
  */
 static u8 energy_meters_send_write_req(u8 addr, u32 value)
 {
@@ -208,8 +211,8 @@ static u8 energy_meters_send_write_req(u8 addr, u32 value)
     /* Calculate and add CRC */
     txBuf[4] = crc_stpm3x(txBuf, 4);
 
-    /* Send via DLL */
-    energy_meter_dll_send(txBuf, STPM34_FRAME_SIZE);
+    /* Send via DLL (chip select handled by DLL) */
+    energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
 
     return 1;
 }
@@ -218,8 +221,9 @@ static u8 energy_meters_send_write_req(u8 addr, u32 value)
  * @brief Process response from STPM34
  *
  * Checks for received data via DLL, validates CRC, and extracts value.
+ * Returns 1 when response received or timeout occurs.
  *
- * @return 1 if valid response received and timeout, 0 otherwise
+ * @return 1 if valid response received or timeout, 0 otherwise
  */
 static u8 energy_meters_process_response(void)
 {
@@ -241,6 +245,9 @@ static u8 energy_meters_process_response(void)
         {
             /* Parse and store the 24-bit value */
             gLastReadValue = energy_meters_parse_response(rxBuf);
+
+            /* Valid response received */
+            returnValue = 1;
         }
     }
 
@@ -248,6 +255,7 @@ static u8 energy_meters_process_response(void)
     if (gEnergyMeterTimeout++ > ENERGY_METER_TIMEOUT)
     {
         gEnergyMeterTimeout = 0;
+        /* Timeout - return 1 to proceed to next state */
         returnValue = 1;
     }
 
