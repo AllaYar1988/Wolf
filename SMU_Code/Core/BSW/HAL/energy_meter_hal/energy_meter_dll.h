@@ -3,7 +3,19 @@
  * @brief STPM34 Energy Meter Data Link Layer interface
  *
  * Provides data link layer functions for STPM34 communication including
- * frame transmission, reception with DMA, and CRC verification.
+ * frame transmission, reception with DMA, CRC verification, and chip select
+ * control.
+ *
+ * ARCHITECTURE DECISION: Chip Select Handling
+ * ------------------------------------------
+ * Chip select is managed at the DLL (Data Link Layer) because:
+ * - DLL handles frame-level communication protocol
+ * - Chip select timing is part of the physical layer protocol
+ * - Application layer should not worry about low-level hardware signals
+ * - Allows for proper transaction encapsulation
+ *
+ * CURRENT DESIGN: Single energy meter with hardcoded chip select macros
+ * FUTURE EXTENSION: For multiple meters, modify functions to accept device instance
  *
  * @date Created on: Oct 16, 2025
  * @author Allahyar Moazami
@@ -26,22 +38,42 @@
  * ======================================================================== */
 
 /**
- * @brief Send data to energy meter via UART with DMA
- * @param[in] msg Pointer to message buffer
- * @param[in] size Size of message in bytes
- */
-void energy_meter_dll_send(u8 *msg, u16 size);
-
-/**
  * @brief Initialize DMA reception for energy meter
  */
 void energy_meter_dll_receive_init(void);
 
 /**
+ * @brief Start transaction and send data to energy meter
+ *
+ * Asserts chip select LOW, then transmits data via UART with DMA.
+ * This function combines chip select control with data transmission.
+ *
+ * @param[in] msg Pointer to message buffer
+ * @param[in] size Size of message in bytes
+ *
+ * @note Chip select remains LOW until energy_meter_dll_transaction_end() is called
+ * @note For multiple meter support, this would take a device instance parameter
+ */
+void energy_meter_dll_transaction_send(u8 *msg, u16 size);
+
+/**
  * @brief Check and process received energy meter data
+ *
+ * Checks if data has been received via DMA using UART IDLE detection.
+ *
  * @return Number of bytes received, 0 if no data available
  */
 u16 energy_meter_dll_receive(void);
+
+/**
+ * @brief End transaction and deselect energy meter
+ *
+ * De-asserts chip select HIGH to end the transaction.
+ * Call this after receiving response or on timeout.
+ *
+ * @note For multiple meter support, this would take a device instance parameter
+ */
+void energy_meter_dll_transaction_end(void);
 
 /**
  * @brief Get pointer to received data buffer
