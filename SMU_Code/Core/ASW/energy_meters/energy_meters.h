@@ -35,6 +35,17 @@ typedef enum {
     ENU_EM_STOP                 /**< Stop/idle state */
 } EnuEnrgyMeterState;
 
+/**
+ * @enum EnuEnergyMeterStatus
+ * @brief Energy meter operation status codes
+ */
+typedef enum {
+    ENU_EM_STATUS_IDLE = 0,         /**< No response yet, waiting */
+    ENU_EM_STATUS_SUCCESS,          /**< Valid response received */
+    ENU_EM_STATUS_TIMEOUT,          /**< Response timeout occurred */
+    ENU_EM_STATUS_CRC_ERROR         /**< CRC validation failed */
+} EnuEnergyMeterStatus;
+
 /* ========================================================================
  * Function Prototypes
  * ======================================================================== */
@@ -83,5 +94,25 @@ u8 energy_meters_write_register(u8 addr, u32 value);
  * @return Last 24-bit value read from STPM34
  */
 u32 energy_meters_get_last_value(void);
+
+/**
+ * @brief Get diagnostic statistics for energy meter communication
+ *
+ * Retrieves counters for successful transactions, timeouts, and CRC errors.
+ * Useful for monitoring communication health and debugging.
+ *
+ * @param[out] success_count Pointer to store successful transaction count (can be NULL)
+ * @param[out] timeout_count Pointer to store timeout occurrence count (can be NULL)
+ * @param[out] crc_error_count Pointer to store CRC error count (can be NULL)
+ */
+void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count, u32 *crc_error_count);
+
+/**
+ * @brief Reset diagnostic statistics counters
+ *
+ * Resets all diagnostic counters (success, timeout, CRC errors) to zero.
+ * Useful for periodic statistics collection or after maintenance.
+ */
+void energy_meters_reset_statistics(void);
 
 #endif /* ASW_ENERGY_METERS_ENERGY_METERS_H_ */
