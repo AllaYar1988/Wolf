@@ -6,7 +6,7 @@
  * processing energy data, and managing communication state machine.
  *
  * @date Created on: Oct 16, 2025
- * @author KHAJEHHOD-GD09
+ * @author A. Moazami
  */
 
 #include "energy_meters.h"
@@ -28,13 +28,22 @@ static u32 gLastReadValue = 0;
 /** @brief Current register address being read */
 static u8 gCurrentRegister = 0;
 
+/** @brief Timeout occurrence counter (for diagnostics) */
+static u32 gTimeoutCount = 0;
+
+/** @brief CRC error counter (for diagnostics) */
+static u32 gCrcErrorCount = 0;
+
+/** @brief Successful transaction counter (for diagnostics) */
+static u32 gSuccessCount = 0;
+
 /* ========================================================================
  * Static Function Prototypes
  * ======================================================================== */
 
 static u8 energy_meters_send_read_req(u8 addr);
 static u8 energy_meters_send_write_req(u8 addr, u32 value);
-static u8 energy_meters_process_response(void);
+static EnuEnergyMeterStatus energy_meters_process_response(void);
 static u32 energy_meters_parse_response(u8 *rxBuf);
 
 /* ========================================================================
@@ -78,18 +87,41 @@ void energy_meters_handler(void)
 
     case ENU_EM_WAIT_FOR_RESPONSE:
         /* Process response from STPM34 */
-        if (energy_meters_process_response())
         {
-            /* End transaction (chip select handled by DLL layer) */
-            energy_meter_dll_transaction_end();
+            EnuEnergyMeterStatus status = energy_meters_process_response();
 
-            /* Cycle through different registers */
-            gCurrentRegister++;
-            if (gCurrentRegister > STPM34_REG_DSP_CR11) {
-                gCurrentRegister = STPM34_REG_DSP_CR5;
+            if (status == ENU_EM_STATUS_SUCCESS)
+            {
+                /* Valid response received */
+                energy_meter_dll_transaction_end();
+
+                /* Cycle through different registers */
+                gCurrentRegister++;
+                if (gCurrentRegister > STPM34_REG_DSP_CR11) {
+                    gCurrentRegister = STPM34_REG_DSP_CR5;
+                }
+
+                state = ENU_EM_SEND_READ_REQ;
             }
+            else if (status == ENU_EM_STATUS_TIMEOUT)
+            {
+                /* Timeout occurred - end transaction and move to next register */
+                energy_meter_dll_transaction_end();
 
-            state = ENU_EM_SEND_READ_REQ;
+                /* Cycle through different registers */
+                gCurrentRegister++;
+                if (gCurrentRegister > STPM34_REG_DSP_CR11) {
+                    gCurrentRegister = STPM34_REG_DSP_CR5;
+                }
+
+                state = ENU_EM_SEND_READ_REQ;
+            }
+            else if (status == ENU_EM_STATUS_CRC_ERROR)
+            {
+                /* CRC error - increment timeout and keep waiting */
+                /* Transaction continues, might get valid data next time */
+            }
+            /* else ENU_EM_STATUS_IDLE - continue waiting */
         }
         break;
 
@@ -102,9 +134,15 @@ void energy_meters_handler(void)
 /**
  * @brief Read STPM34 register value
  *
+ * Sends a read command to the specified STPM34 register. Due to STPM34's
+ * protocol, the value returned is from the PREVIOUS transaction.
+ *
  * @param[in] addr Register address to read
- * @param[out] value Pointer to store read value
+ * @param[out] value Pointer to store read value from previous transaction (can be NULL)
  * @return 1 if successful, 0 if failed
+ *
+ * @note This is a blocking function that manages chip select automatically
+ * @note For periodic register reading, use energy_meters_handler() state machine instead
  */
 u8 energy_meters_read_register(u8 addr, u32 *value)
 {
@@ -120,8 +158,12 @@ u8 energy_meters_read_register(u8 addr, u32 *value)
     /* Calculate CRC for the frame */
     txBuf[4] = crc_stpm3x(txBuf, 4);
 
-    /* Send frame via DLL */
-    energy_meter_dll_send(txBuf, STPM34_FRAME_SIZE);
+    /* Send frame via DLL (chip select handled by DLL) */
+    energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+
+    /* Note: Should wait for response and call energy_meter_dll_transaction_end() */
+    /* For now, transaction end should be called by the caller after waiting */
+    /* Typically this function is not used - the state machine handles communication */
 
     /* Value will be available in next transaction */
     if (value != NULL) {
@@ -152,6 +194,44 @@ u8 energy_meters_write_register(u8 addr, u32 value)
 u32 energy_meters_get_last_value(void)
 {
     return gLastReadValue;
+}
+
+/**
+ * @brief Get diagnostic statistics for energy meter communication
+ *
+ * Retrieves counters for successful transactions, timeouts, and CRC errors.
+ * These statistics help monitor communication health and identify issues.
+ *
+ * @param[out] success_count Pointer to store successful transaction count (can be NULL)
+ * @param[out] timeout_count Pointer to store timeout occurrence count (can be NULL)
+ * @param[out] crc_error_count Pointer to store CRC error count (can be NULL)
+ */
+void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count, u32 *crc_error_count)
+{
+    if (success_count != NULL) {
+        *success_count = gSuccessCount;
+    }
+
+    if (timeout_count != NULL) {
+        *timeout_count = gTimeoutCount;
+    }
+
+    if (crc_error_count != NULL) {
+        *crc_error_count = gCrcErrorCount;
+    }
+}
+
+/**
+ * @brief Reset diagnostic statistics counters
+ *
+ * Resets all diagnostic counters (success, timeout, CRC errors) to zero.
+ * Useful for periodic statistics collection or after maintenance operations.
+ */
+void energy_meters_reset_statistics(void)
+{
+    gSuccessCount = 0;
+    gTimeoutCount = 0;
+    gCrcErrorCount = 0;
 }
 
 /* ========================================================================
@@ -221,13 +301,17 @@ static u8 energy_meters_send_write_req(u8 addr, u32 value)
  * @brief Process response from STPM34
  *
  * Checks for received data via DLL, validates CRC, and extracts value.
- * Returns 1 when response received or timeout occurs.
+ * Implements proper timeout mechanism with diagnostic counters.
  *
- * @return 1 if valid response received or timeout, 0 otherwise
+ * @return EnuEnergyMeterStatus indicating the result:
+ *         - ENU_EM_STATUS_SUCCESS: Valid response received
+ *         - ENU_EM_STATUS_TIMEOUT: Timeout occurred
+ *         - ENU_EM_STATUS_CRC_ERROR: Data received but CRC invalid
+ *         - ENU_EM_STATUS_IDLE: Still waiting for response
  */
-static u8 energy_meters_process_response(void)
+static EnuEnergyMeterStatus energy_meters_process_response(void)
 {
-    u8 returnValue = 0;
+    EnuEnergyMeterStatus status = ENU_EM_STATUS_IDLE;
     u16 bytesReceived;
 
     /* Check for received data */
@@ -243,23 +327,43 @@ static u8 energy_meters_process_response(void)
 
         if (receivedCrc == calculatedCrc)
         {
-            /* Parse and store the 24-bit value */
+            /* Valid response received - parse and store the 24-bit value */
             gLastReadValue = energy_meters_parse_response(rxBuf);
 
-            /* Valid response received */
-            returnValue = 1;
+            /* Reset timeout counter */
+            gEnergyMeterTimeout = 0;
+
+            /* Increment success counter */
+            gSuccessCount++;
+
+            status = ENU_EM_STATUS_SUCCESS;
+        }
+        else
+        {
+            /* CRC validation failed */
+            gCrcErrorCount++;
+            status = ENU_EM_STATUS_CRC_ERROR;
+
+            /* Continue incrementing timeout for CRC errors */
+            gEnergyMeterTimeout++;
         }
     }
-
-    /* Check timeout */
-    if (gEnergyMeterTimeout++ > ENERGY_METER_TIMEOUT)
+    else
     {
-        gEnergyMeterTimeout = 0;
-        /* Timeout - return 1 to proceed to next state */
-        returnValue = 1;
+        /* No data received yet - increment timeout counter */
+        gEnergyMeterTimeout++;
     }
 
-    return returnValue;
+    /* Check if timeout reached */
+    if (gEnergyMeterTimeout > ENERGY_METER_TIMEOUT)
+    {
+        /* Timeout occurred */
+        gEnergyMeterTimeout = 0;
+        gTimeoutCount++;
+        status = ENU_EM_STATUS_TIMEOUT;
+    }
+
+    return status;
 }
 
 /**
