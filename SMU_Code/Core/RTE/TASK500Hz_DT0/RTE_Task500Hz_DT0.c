@@ -313,7 +313,6 @@ static void VoidFn2msFullyOpDT0(void)
 			else if (9u == U16Mod_100)
 			{
 				server_select();
-				energy_meters_handler();
 			}
 
 		   /*
