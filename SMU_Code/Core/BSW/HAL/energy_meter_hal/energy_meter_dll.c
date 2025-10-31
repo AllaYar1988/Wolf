@@ -57,14 +57,15 @@ static volatile u32 gTxSuccessCount = 0;
  * @brief Start transaction and send data to energy meter
  *
  * Asserts chip select LOW (active), then transmits data to the STPM34
- * energy meter using interrupt mode. Chip select remains LOW until
- * transaction_end() is called.
+ * energy meter using DMA. Chip select remains LOW until transaction_end()
+ * is called.
  *
  * @param[in] msg Pointer to message buffer
  * @param[in] size Size of message in bytes (max STPM34_FRAME_SIZE)
  *
  * @note Chip select timing is handled by DLL layer for proper protocol
- * @note Data is copied to internal buffer to ensure it persists during transmission
+ * @note Data is copied to internal buffer to ensure it persists during DMA
+ * @note DMA completion triggers HAL_UART_TxCpltCallback / HAL_UART_RxCpltCallback
  * @note For multiple meter support, add device instance parameter
  */
 void energy_meter_dll_transaction_send(u8 *msg, u16 size)
@@ -79,7 +80,7 @@ void energy_meter_dll_transaction_send(u8 *msg, u16 size)
         size = STPM34_FRAME_SIZE;
     }
 
-    /* Copy data to internal TX buffer (ensure persistence during transmission) */
+    /* Copy data to internal TX buffer (DMA needs persistent buffer) */
     memcpy(gEnergyTxData, msg, size);
 
     /* Assert chip select LOW (select device) */
@@ -92,18 +93,18 @@ void energy_meter_dll_transaction_send(u8 *msg, u16 size)
     gTxComplete = 0;
     gRxComplete = 0;
 
-    /* Abort any ongoing transmissions to ensure clean state */
-    HAL_UART_AbortTransmit_IT(&ENERGY_METER_UART);
-    HAL_UART_AbortReceive_IT(&ENERGY_METER_UART);
+    /* Abort any ongoing DMA transfers to ensure clean state */
+    HAL_UART_AbortTransmit(&ENERGY_METER_UART);
+    HAL_UART_AbortReceive(&ENERGY_METER_UART);
 
     /* Wait a bit for abort to complete */
     for (volatile int i = 0; i < 100; i++);
 
-    /* Start reception first (must be ready before TX) */
-    HAL_UART_Receive_IT(&ENERGY_METER_UART, gEnergyRxData, STPM34_FRAME_SIZE);
+    /* Start DMA reception first (must be ready before TX) */
+    HAL_UART_Receive_DMA(&ENERGY_METER_UART, gEnergyRxData, STPM34_FRAME_SIZE);
 
-    /* Then transmit data via interrupt mode */
-    status = HAL_UART_Transmit_IT(&ENERGY_METER_UART, gEnergyTxData, size);
+    /* Then transmit data via DMA */
+    status = HAL_UART_Transmit_DMA(&ENERGY_METER_UART, gEnergyTxData, size);
 
     /* Track status */
     if (status == HAL_OK) {

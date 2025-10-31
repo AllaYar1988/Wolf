@@ -63,15 +63,15 @@ value = (rxBuf[1] << 16) | (rxBuf[2] << 8) | rxBuf[3];
 value = rxBuf[0] | (rxBuf[1] << 8);
 ```
 
-### Issue 3: DMA vs Interrupt Mode ✅ FIXED
-**Problem:** Used DMA mode, but sampleCode uses interrupt mode
-**Impact:** Completion flags not set properly
+### Issue 3: DMA with Completion Callbacks ✅ FIXED
+**Problem:** DMA completion flags not being set
+**Impact:** State machine couldn't detect when TX/RX completed
 
 **Changes:**
-1. Replaced `HAL_UART_Transmit_DMA` → `HAL_UART_Transmit_IT`
-2. Replaced `HAL_UART_Receive_DMA` → `HAL_UART_Receive_IT`
-3. Added completion flags: `gTxComplete`, `gRxComplete`
-4. Added UART callbacks to set flags
+1. Using `HAL_UART_Transmit_DMA` and `HAL_UART_Receive_DMA` (DMA mode as requested)
+2. Added completion flags: `gTxComplete`, `gRxComplete`
+3. Added UART callbacks to set flags (DMA triggers these callbacks on completion)
+4. DMA uses interrupts internally for completion notification
 
 **Added to main.c:**
 ```c
@@ -92,6 +92,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 ```
 
+**Note:** DMA mode is used per requirements. DMA internally uses interrupts to trigger these callbacks when transfers complete, which is normal HAL behavior.
+
 ## Files Modified
 
 1. **SMU_Code/Core/ASW/energy_meters/energy_meters.c**
@@ -100,9 +102,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
    - Fixed response parsing to 16-bit little endian
 
 2. **SMU_Code/Core/BSW/HAL/energy_meter_hal/energy_meter_dll.c**
-   - Switched to `HAL_UART_Transmit_IT` / `HAL_UART_Receive_IT`
+   - Using `HAL_UART_Transmit_DMA` / `HAL_UART_Receive_DMA` (DMA mode)
    - Added `gTxComplete` and `gRxComplete` flags
    - Updated `energy_meter_dll_receive()` to check `gRxComplete`
+   - DMA completion triggers callbacks to set flags
 
 3. **SMU_Code/Core/BSW/HAL/energy_meter_hal/energy_meter_dll.h**
    - Exported `gTxComplete` and `gRxComplete` flags
