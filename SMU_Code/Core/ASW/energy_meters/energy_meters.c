@@ -25,11 +25,17 @@ static u32 gEnergyMeterTimeout = 0;
 /** @brief Last received data from STPM34 */
 static u32 gLastReadValue = 0;
 
-/** @brief Current register address being read */
+/** @brief Current register address being read/written */
 static u8 gCurrentRegister = 0;
 
 /** @brief Timeout occurrence counter (for diagnostics) */
 static u32 gTimeoutCount = 0;
+
+/** @brief Configuration complete flag */
+static u8 gConfigComplete = 0;
+
+/** @brief Chip initialized flag */
+static u8 gChipInitialized = 0;
 
 /** @brief CRC error counter (for diagnostics) */
 static u32 gCrcErrorCount = 0;
@@ -53,81 +59,191 @@ static u32 energy_meters_parse_response(u8 *rxBuf);
 /**
  * @brief Main energy meter handler state machine
  *
- * Implements state machine for periodic energy meter communication.
- * Call this function periodically (e.g., every 10ms).
+ * Implements complete STPM34 initialization and communication state machine.
+ * Must be called periodically (e.g., every 10-50ms).
+ *
+ * Initialization sequence:
+ * 1. Hardware init (UART, GPIO)
+ * 2. Software reset chip
+ * 3. Write all configuration registers
+ * 4. Latch data
+ * 5. Read data registers continuously
  */
 void energy_meters_handler(void)
 {
     static EnuEnrgyMeterState state = ENU_EM_INIT;
+    EnuEnergyMeterStatus status;
 
     switch(state)
     {
     case ENU_EM_INIT:
-        /* Initialize hardware */
+        /* Initialize hardware (UART, GPIO, DMA) */
         energy_meters_hal_init();
-
-        /* Initialize DMA reception */
         energy_meter_dll_receive_init();
 
-        /* Start with register 0x05 (DSP_CR5) */
-        gCurrentRegister = STPM34_REG_DSP_CR5;
+        /* Start initialization sequence with chip reset */
+        state = ENU_EM_RESET_CHIP_TX;
+        break;
 
-        state = ENU_EM_SEND_READ_REQ;
+    case ENU_EM_RESET_CHIP_TX:
+        /* Send software reset command via DSP_CR3 register */
+        {
+            u32 dsp_cr3_value = STPM34_DSP_CR3_DEFAULT |
+                               STPM34_DSP_CR3_SW_RESET |
+                               STPM34_DSP_CR3_SW_LATCH1 |
+                               STPM34_DSP_CR3_SW_LATCH2;
+
+            energy_meters_send_write_req(STPM34_REG_DSP_CR3, dsp_cr3_value);
+            gEnergyMeterTimeout = 0;
+            state = ENU_EM_RESET_CHIP_RX;
+        }
+        break;
+
+    case ENU_EM_RESET_CHIP_RX:
+        /* Wait for reset confirmation */
+        status = energy_meters_process_response();
+
+        if (status == ENU_EM_STATUS_SUCCESS || status == ENU_EM_STATUS_TIMEOUT)
+        {
+            /* Reset complete - start writing configuration registers */
+            gCurrentRegister = 0x00;  /* Start from DSP_CR1 */
+            state = ENU_EM_WRITE_CONFIG_TX;
+        }
+        break;
+
+    case ENU_EM_WRITE_CONFIG_TX:
+        /* Write configuration registers sequentially */
+        {
+            u32 reg_value = 0;  /* Default value */
+
+            /* Set specific register values based on address */
+            switch(gCurrentRegister)
+            {
+                case STPM34_REG_DSP_CR3:
+                    reg_value = STPM34_DSP_CR3_DEFAULT;  /* No reset/latch bits */
+                    break;
+                case STPM34_REG_DFE_CR1:
+                    reg_value = 0x00000300;  /* Enable CH1, Gain=2 */
+                    break;
+                case STPM34_REG_DFE_CR2:
+                    reg_value = 0x00000300;  /* Enable CH2, Gain=2 */
+                    break;
+                case STPM34_REG_US_REG1:
+                    reg_value = STPM34_US_REG1_DEFAULT;  /* CRC enabled */
+                    break;
+                case STPM34_REG_US_REG2:
+                    reg_value = STPM34_US_REG2_DEFAULT;  /* Baud rate */
+                    break;
+                default:
+                    reg_value = 0;  /* Other registers use default 0 */
+                    break;
+            }
+
+            energy_meters_send_write_req(gCurrentRegister, reg_value);
+            gEnergyMeterTimeout = 0;
+            state = ENU_EM_WRITE_CONFIG_RX;
+        }
+        break;
+
+    case ENU_EM_WRITE_CONFIG_RX:
+        /* Wait for write confirmation */
+        status = energy_meters_process_response();
+
+        if (status == ENU_EM_STATUS_SUCCESS || status == ENU_EM_STATUS_TIMEOUT)
+        {
+            /* Move to next configuration register */
+            gCurrentRegister += 2;  /* STPM34 uses 16-bit addressing */
+
+            if (gCurrentRegister > STPM34_CONFIG_REGS_END)
+            {
+                /* All config registers written - proceed to data latching */
+                gConfigComplete = 1;
+                state = ENU_EM_LATCH_DATA_TX;
+            }
+            else
+            {
+                /* Write next register */
+                state = ENU_EM_WRITE_CONFIG_TX;
+            }
+        }
+        break;
+
+    case ENU_EM_LATCH_DATA_TX:
+        /* Send latch command to freeze data registers for reading */
+        {
+            u32 dsp_cr3_value = STPM34_DSP_CR3_DEFAULT |
+                               STPM34_DSP_CR3_SW_LATCH1 |
+                               STPM34_DSP_CR3_SW_LATCH2;
+
+            energy_meters_send_write_req(STPM34_REG_DSP_CR3, dsp_cr3_value);
+            gEnergyMeterTimeout = 0;
+            state = ENU_EM_LATCH_DATA_RX;
+        }
+        break;
+
+    case ENU_EM_LATCH_DATA_RX:
+        /* Wait for latch confirmation */
+        status = energy_meters_process_response();
+
+        if (status == ENU_EM_STATUS_SUCCESS || status == ENU_EM_STATUS_TIMEOUT)
+        {
+            /* Data latched - now we can start reading */
+            gCurrentRegister = STPM34_DATA_REGS_START;
+            gChipInitialized = 1;
+            state = ENU_EM_SEND_READ_REQ;
+        }
         break;
 
     case ENU_EM_SEND_READ_REQ:
-        /* Send read request (chip select handled by DLL layer) */
-    	gCurrentRegister = 0x05;
+        /* Send read request for data register */
         energy_meters_send_read_req(gCurrentRegister);
-
-        /* Reset timeout counter */
         gEnergyMeterTimeout = 0;
-
         state = ENU_EM_WAIT_FOR_RESPONSE;
         break;
 
     case ENU_EM_WAIT_FOR_RESPONSE:
         /* Process response from STPM34 */
+        status = energy_meters_process_response();
+
+        if (status == ENU_EM_STATUS_SUCCESS)
         {
-            EnuEnergyMeterStatus status = energy_meters_process_response();
+            /* Valid response received - move to next register */
+            gCurrentRegister += 2;  /* Increment by 2 (16-bit addressing) */
 
-            if (status == ENU_EM_STATUS_SUCCESS)
+            if (gCurrentRegister > STPM34_DATA_REGS_END)
             {
-                /* Valid response received */
-               // energy_meter_dll_transaction_end();
-
-                /* Cycle through different registers */
-                gCurrentRegister++;
-                if (gCurrentRegister > STPM34_REG_DSP_CR11) {
-                    gCurrentRegister = STPM34_REG_DSP_CR5;
-                }
-
+                /* All registers read - latch new data and restart */
+                state = ENU_EM_LATCH_DATA_TX;
+            }
+            else
+            {
+                /* Read next register */
                 state = ENU_EM_SEND_READ_REQ;
             }
-            else if (status == ENU_EM_STATUS_TIMEOUT)
-            {
-                /* Timeout occurred - end transaction and move to next register */
-               // energy_meter_dll_transaction_end();
-
-                /* Cycle through different registers */
-                gCurrentRegister++;
-                if (gCurrentRegister > STPM34_REG_DSP_CR11) {
-                    gCurrentRegister = STPM34_REG_DSP_CR5;
-                }
-
-                state = ENU_EM_SEND_READ_REQ;
-            }
-            else if (status == ENU_EM_STATUS_CRC_ERROR)
-            {
-                /* CRC error - increment timeout and keep waiting */
-                /* Transaction continues, might get valid data next time */
-            }
-            /* else ENU_EM_STATUS_IDLE - continue waiting */
         }
+        else if (status == ENU_EM_STATUS_TIMEOUT)
+        {
+            /* Timeout - skip this register and continue */
+            gCurrentRegister += 2;
+
+            if (gCurrentRegister > STPM34_DATA_REGS_END)
+            {
+                state = ENU_EM_LATCH_DATA_TX;
+            }
+            else
+            {
+                state = ENU_EM_SEND_READ_REQ;
+            }
+        }
+        /* else ENU_EM_STATUS_IDLE or CRC_ERROR - keep waiting */
+        break;
+
+    case ENU_EM_IDLE:
+        /* Idle state - wait for next cycle */
         break;
 
     case ENU_EM_STOP:
-        /* Idle state - do nothing */
+        /* Error/stop state - do nothing */
         break;
     }
 }
@@ -235,6 +351,19 @@ void energy_meters_reset_statistics(void)
     gCrcErrorCount = 0;
 }
 
+/**
+ * @brief Check if STPM34 initialization is complete
+ *
+ * Returns the initialization status. The chip must complete initialization
+ * (reset, configuration, and first data latch) before valid data can be read.
+ *
+ * @return 1 if initialization complete and chip is ready, 0 otherwise
+ */
+u8 energy_meters_is_initialized(void)
+{
+    return gChipInitialized;
+}
+
 /* ========================================================================
  * Static Function Implementations
  * ======================================================================== */
@@ -274,20 +403,21 @@ static u8 energy_meters_send_read_req(u8 addr)
  * Chip select is handled by DLL transaction functions.
  *
  * @param[in] addr Register address to write
- * @param[in] value 24-bit value to write
+ * @param[in] value 16-bit value to write (STPM34 uses 16-bit registers)
  * @return Always returns 1
  *
+ * @note STPM34 protocol: [Addr][DataLow][DataHigh][CRC]
  * @note Caller should call energy_meter_dll_transaction_end() after write completes
  */
 static u8 energy_meters_send_write_req(u8 addr, u32 value)
 {
     u8 txBuf[STPM34_FRAME_SIZE];
 
-    /* Build write command frame */
+    /* Build write command frame - STPM34 format */
     txBuf[0] = addr & (~STPM34_READ_BIT);  /* Address with read bit clear */
-    txBuf[1] = (value >> 16) & 0xFF;       /* MSB */
-    txBuf[2] = (value >> 8) & 0xFF;        /* Mid byte */
-    txBuf[3] = value & 0xFF;                /* LSB */
+    txBuf[1] = value & 0xFF;               /* Data byte low */
+    txBuf[2] = (value >> 8) & 0xFF;        /* Data byte high */
+    txBuf[3] = (value >> 16) & 0xFF;       /* Extended byte (usually 0) */
 
     /* Calculate and add CRC */
     txBuf[4] = crc_stpm3x(txBuf, 4);

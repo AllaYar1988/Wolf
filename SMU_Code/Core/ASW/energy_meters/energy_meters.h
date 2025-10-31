@@ -30,9 +30,16 @@
  */
 typedef enum {
     ENU_EM_INIT = 0,            /**< Initialization state */
+    ENU_EM_RESET_CHIP_TX,       /**< Send chip reset command */
+    ENU_EM_RESET_CHIP_RX,       /**< Wait for reset confirmation */
+    ENU_EM_WRITE_CONFIG_TX,     /**< Send configuration registers */
+    ENU_EM_WRITE_CONFIG_RX,     /**< Wait for config write confirmation */
+    ENU_EM_LATCH_DATA_TX,       /**< Send data latch command */
+    ENU_EM_LATCH_DATA_RX,       /**< Wait for latch confirmation */
     ENU_EM_SEND_READ_REQ,       /**< Send read request state */
     ENU_EM_WAIT_FOR_RESPONSE,   /**< Wait for response state */
-    ENU_EM_STOP                 /**< Stop/idle state */
+    ENU_EM_IDLE,                /**< Idle state after successful read */
+    ENU_EM_STOP                 /**< Stop/error state */
 } EnuEnrgyMeterState;
 
 /**
@@ -114,5 +121,15 @@ void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count, u32 *c
  * Useful for periodic statistics collection or after maintenance.
  */
 void energy_meters_reset_statistics(void);
+
+/**
+ * @brief Check if STPM34 initialization is complete
+ *
+ * Returns initialization status. The chip must be initialized before
+ * valid data can be read from data registers.
+ *
+ * @return 1 if initialization complete, 0 if still initializing
+ */
+u8 energy_meters_is_initialized(void);
 
 #endif /* ASW_ENERGY_METERS_ENERGY_METERS_H_ */

@@ -77,36 +77,49 @@
 /** @defgroup STPM34_Registers STPM34 Register Map
  * @{
  */
-#define STPM34_REG_DSP_CR1          0x00    /**< DSP Control Register 1 */
-#define STPM34_REG_DSP_CR2          0x01    /**< DSP Control Register 2 */
-#define STPM34_REG_DSP_CR3          0x02    /**< DSP Control Register 3 */
-#define STPM34_REG_DSP_CR4          0x03    /**< DSP Control Register 4 */
-#define STPM34_REG_DSP_CR5          0x04    /**< DSP Control Register 5 */
-#define STPM34_REG_DSP_CR6          0x05    /**< DSP Control Register 6 */
-#define STPM34_REG_DSP_CR7          0x06    /**< DSP Control Register 7 */
-#define STPM34_REG_DSP_CR8          0x07    /**< DSP Control Register 8 */
-#define STPM34_REG_DSP_CR9          0x08    /**< DSP Control Register 9 */
-#define STPM34_REG_DSP_CR10         0x09    /**< DSP Control Register 10 */
-#define STPM34_REG_DSP_CR11         0x0A    /**< DSP Control Register 11 */
-#define STPM34_REG_DFE_CR1          0x18    /**< Digital Front End Control 1 */
-#define STPM34_REG_DFE_CR2          0x19    /**< Digital Front End Control 2 */
+/* Configuration Registers (Write during initialization) */
+#define STPM34_REG_DSP_CR1          0x00    /**< DSP Control Register 1 (Channel 1 config) */
+#define STPM34_REG_DSP_CR2          0x02    /**< DSP Control Register 2 (Channel 2 config) */
+#define STPM34_REG_DSP_CR3          0x04    /**< DSP Control Register 3 (Reset, Latch, Frequency) */
+#define STPM34_REG_DSP_CR4          0x06    /**< DSP Control Register 4 (Phase calibration) */
+#define STPM34_REG_DSP_CR5          0x08    /**< DSP Control Register 5 (CH1 V calibration) */
+#define STPM34_REG_DSP_CR6          0x0A    /**< DSP Control Register 6 (CH1 I calibration) */
+#define STPM34_REG_DSP_CR7          0x0C    /**< DSP Control Register 7 (CH2 V calibration) */
+#define STPM34_REG_DSP_CR8          0x0E    /**< DSP Control Register 8 (CH2 I calibration) */
+#define STPM34_REG_DSP_CR9          0x10    /**< DSP Control Register 9 (CH1 power offset) */
+#define STPM34_REG_DSP_CR10         0x12    /**< DSP Control Register 10 (CH1 energy offset) */
+#define STPM34_REG_DSP_CR11         0x14    /**< DSP Control Register 11 (CH2 power offset) */
+#define STPM34_REG_DSP_CR12         0x16    /**< DSP Control Register 12 (CH2 energy offset) */
+#define STPM34_REG_DFE_CR1          0x18    /**< Digital Front End Control 1 (CH1 gain) */
+#define STPM34_REG_DFE_CR2          0x1A    /**< Digital Front End Control 2 (CH2 gain) */
+#define STPM34_REG_DSP_IRQ1         0x1C    /**< Interrupt config 1 */
+#define STPM34_REG_DSP_IRQ2         0x1E    /**< Interrupt config 2 */
+#define STPM34_REG_DSP_SR1          0x20    /**< Status register 1 */
+#define STPM34_REG_DSP_SR2          0x22    /**< Status register 2 */
+#define STPM34_REG_US_REG1          0x24    /**< UART/SPI config 1 */
+#define STPM34_REG_US_REG2          0x26    /**< UART/SPI config 2 */
+#define STPM34_REG_US_REG3          0x28    /**< UART/SPI config 3 */
 
-/* Data Registers */
+#define STPM34_CONFIG_REGS_END      0x29    /**< Last configuration register address */
+
+/* Data Registers (Read after latching) */
+#define STPM34_DATA_REGS_START      0x20    /**< First data register */
 #define STPM34_REG_DSP_REG1         0x24    /**< DSP Data Register 1 */
-#define STPM34_REG_DSP_REG2         0x25    /**< DSP Data Register 2 */
-#define STPM34_REG_DSP_REG3         0x26    /**< DSP Data Register 3 */
-#define STPM34_REG_DSP_REG4         0x27    /**< DSP Data Register 4 */
-#define STPM34_REG_DSP_REG5         0x28    /**< DSP Data Register 5 */
-#define STPM34_REG_DSP_REG6         0x29    /**< DSP Data Register 6 */
-#define STPM34_REG_DSP_REG7         0x2A    /**< DSP Data Register 7 */
-#define STPM34_REG_DSP_REG8         0x2B    /**< DSP Data Register 8 */
-#define STPM34_REG_DSP_REG9         0x2C    /**< DSP Data Register 9 */
-#define STPM34_REG_DSP_REG10        0x2D    /**< DSP Data Register 10 */
-#define STPM34_REG_DSP_REG11        0x2E    /**< DSP Data Register 11 */
-#define STPM34_REG_DSP_REG12        0x2F    /**< DSP Data Register 12 */
-#define STPM34_REG_DSP_REG13        0x30    /**< DSP Data Register 13 */
-#define STPM34_REG_DSP_REG14        0x31    /**< DSP Data Register 14 */
-#define STPM34_REG_DSP_REG15        0x32    /**< DSP Data Register 15 */
+#define STPM34_REG_DSP_REG2         0x26    /**< DSP Data Register 2 */
+#define STPM34_REG_DSP_REG3         0x28    /**< DSP Data Register 3 */
+#define STPM34_REG_DSP_REG4         0x2A    /**< DSP Data Register 4 */
+#define STPM34_REG_DSP_REG5         0x2C    /**< DSP Data Register 5 */
+#define STPM34_REG_DSP_REG6         0x2E    /**< DSP Data Register 6 */
+#define STPM34_REG_DSP_REG7         0x30    /**< DSP Data Register 7 */
+#define STPM34_REG_DSP_REG8         0x32    /**< DSP Data Register 8 */
+#define STPM34_REG_DSP_REG9         0x34    /**< DSP Data Register 9 (Line period) */
+#define STPM34_REG_DSP_REG10        0x36    /**< DSP Data Register 10 (Momentary V/I) */
+#define STPM34_REG_DSP_REG11        0x38    /**< DSP Data Register 11 */
+#define STPM34_REG_DSP_REG12        0x3A    /**< DSP Data Register 12 */
+#define STPM34_REG_DSP_REG13        0x3C    /**< DSP Data Register 13 */
+#define STPM34_REG_DSP_REG14        0x3E    /**< DSP Data Register 14 */
+#define STPM34_REG_DSP_REG15        0x40    /**< DSP Data Register 15 (RMS V/I CH1) */
+#define STPM34_DATA_REGS_END        0x8B    /**< Last data register */
 
 /* Energy Registers */
 #define STPM34_REG_CH1_ACTIVE_ENERGY    0x04    /**< Channel 1 Active Energy */
@@ -141,6 +154,27 @@
 
 /** @brief Write command bit (bit 7 = 0 for write) */
 #define STPM34_WRITE_BIT            0x00
+
+/* ========================================================================
+ * STPM34 DSP_CR3 Control Bits (for reset and latch operations)
+ * ======================================================================== */
+
+/** @brief Software reset bit in DSP_CR3 register (bit 14) */
+#define STPM34_DSP_CR3_SW_RESET     (1 << 14)
+
+/** @brief Software latch 1 bit in DSP_CR3 register (bit 15) */
+#define STPM34_DSP_CR3_SW_LATCH1    (1 << 15)
+
+/** @brief Software latch 2 bit in DSP_CR3 register (bit 16) */
+#define STPM34_DSP_CR3_SW_LATCH2    (1 << 16)
+
+/** @brief 60Hz frequency selection bit in DSP_CR3 register (bit 27) */
+#define STPM34_DSP_CR3_REFFREQ_60HZ (1 << 27)
+
+/* Default configuration values for STPM34 */
+#define STPM34_DSP_CR3_DEFAULT      0x04E00000  /**< Default DSP_CR3: SAG_TIME_THR=0x4E0 */
+#define STPM34_US_REG1_DEFAULT      0x00000700  /**< CRC enabled, polynomial 0x07 */
+#define STPM34_US_REG2_DEFAULT      0x00000683  /**< Baud rate for 9600 */
 
 /* ========================================================================
  * Data Structures
