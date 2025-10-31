@@ -34,6 +34,16 @@
 #define STPM34_FRAME_SIZE           5       /**< Size of STPM34 communication frame */
 
 /* ========================================================================
+ * External Variables (for UART interrupt callbacks)
+ * ======================================================================== */
+
+/** @brief TX complete flag (set by HAL_UART_TxCpltCallback) */
+extern volatile u8 gTxComplete;
+
+/** @brief RX complete flag (set by HAL_UART_RxCpltCallback) */
+extern volatile u8 gRxComplete;
+
+/* ========================================================================
  * Function Prototypes
  * ======================================================================== */
 

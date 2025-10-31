@@ -93,7 +93,15 @@ void energy_meters_handler(void)
                                STPM34_DSP_CR3_SW_LATCH1 |
                                STPM34_DSP_CR3_SW_LATCH2;
 
-            energy_meters_send_write_req(STPM34_REG_DSP_CR3, dsp_cr3_value);
+            /* Note: sampleCode reads 0x05 while writing DSP_CR3 during reset */
+            u8 txBuf[STPM34_FRAME_SIZE];
+            txBuf[0] = 0x05;                         /* Read address 0x05 */
+            txBuf[1] = STPM34_REG_DSP_CR3;           /* Write DSP_CR3 */
+            txBuf[2] = dsp_cr3_value & 0xFF;         /* Data LOW */
+            txBuf[3] = (dsp_cr3_value >> 8) & 0xFF;  /* Data HIGH */
+            txBuf[4] = crc_stpm3x(txBuf, 4);         /* CRC */
+            energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+
             gEnergyMeterTimeout = 0;
             state = ENU_EM_RESET_CHIP_RX;
         }
@@ -142,7 +150,15 @@ void energy_meters_handler(void)
                     break;
             }
 
-            energy_meters_send_write_req(gCurrentRegister, reg_value);
+            /* sampleCode reads 0x01 while writing config registers */
+            u8 txBuf[STPM34_FRAME_SIZE];
+            txBuf[0] = 0x01;                         /* Read address 0x01 */
+            txBuf[1] = gCurrentRegister;             /* Write target register */
+            txBuf[2] = reg_value & 0xFF;             /* Data LOW */
+            txBuf[3] = (reg_value >> 8) & 0xFF;      /* Data HIGH */
+            txBuf[4] = crc_stpm3x(txBuf, 4);         /* CRC */
+            energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+
             gEnergyMeterTimeout = 0;
             state = ENU_EM_WRITE_CONFIG_RX;
         }
@@ -181,7 +197,15 @@ void energy_meters_handler(void)
                                STPM34_DSP_CR3_SW_LATCH1 |
                                STPM34_DSP_CR3_SW_LATCH2;
 
-            energy_meters_send_write_req(STPM34_REG_DSP_CR3, dsp_cr3_value);
+            /* sampleCode uses 0xFF (no read) for latch operations */
+            u8 txBuf[STPM34_FRAME_SIZE];
+            txBuf[0] = 0xFF;                         /* No read */
+            txBuf[1] = STPM34_REG_DSP_CR3;           /* Write DSP_CR3 */
+            txBuf[2] = dsp_cr3_value & 0xFF;         /* Data LOW */
+            txBuf[3] = (dsp_cr3_value >> 8) & 0xFF;  /* Data HIGH */
+            txBuf[4] = crc_stpm3x(txBuf, 4);         /* CRC */
+            energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+
             gEnergyMeterTimeout = 0;
             state = ENU_EM_LATCH_DATA_RX;
         }
@@ -387,20 +411,22 @@ u8 energy_meters_is_initialized(void)
  * @brief Send read request to STPM34
  *
  * Builds read command frame and sends via DLL layer.
- * Chip select is handled by DLL transaction functions.
+ * STPM34 protocol uses TWO addresses per frame: read addr and write addr.
  *
  * @param[in] addr Register address to read
  * @return Always returns 1
+ *
+ * @note Frame format: [ReadAddr][WriteAddr=0xFF][DataLow=0xFF][DataHigh=0xFF][CRC]
  */
 static u8 energy_meters_send_read_req(u8 addr)
 {
     u8 txBuf[STPM34_FRAME_SIZE];
 
-    /* Build read command frame */
-    txBuf[0] = addr | STPM34_READ_BIT;  /* Address with read bit set */
-    txBuf[1] = 0xFF;  /* Dummy bytes */
-    txBuf[2] = 0xFF;
-    txBuf[3] = 0xFF;
+    /* Build read command frame - STPM34 two-address format */
+    txBuf[0] = addr;    /* Read address */
+    txBuf[1] = 0xFF;    /* Write address (0xFF = no write) */
+    txBuf[2] = 0xFF;    /* Write data LOW byte (dummy) */
+    txBuf[3] = 0xFF;    /* Write data HIGH byte (dummy) */
 
     /* Calculate and add CRC */
     txBuf[4] = crc_stpm3x(txBuf, 4);
@@ -415,24 +441,24 @@ static u8 energy_meters_send_read_req(u8 addr)
  * @brief Send write request to STPM34
  *
  * Builds write command frame and sends via DLL layer.
- * Chip select is handled by DLL transaction functions.
+ * STPM34 protocol uses TWO addresses per frame: read addr and write addr.
  *
  * @param[in] addr Register address to write
- * @param[in] value 16-bit value to write (STPM34 uses 16-bit registers)
+ * @param[in] value 16-bit value to write
  * @return Always returns 1
  *
- * @note STPM34 protocol: [Addr][DataLow][DataHigh][CRC]
+ * @note Frame format: [ReadAddr=0xFF][WriteAddr][DataLow][DataHigh][CRC]
  * @note Caller should call energy_meter_dll_transaction_end() after write completes
  */
 static u8 energy_meters_send_write_req(u8 addr, u32 value)
 {
     u8 txBuf[STPM34_FRAME_SIZE];
 
-    /* Build write command frame - STPM34 format */
-    txBuf[0] = addr & (~STPM34_READ_BIT);  /* Address with read bit clear */
-    txBuf[1] = value & 0xFF;               /* Data byte low */
-    txBuf[2] = (value >> 8) & 0xFF;        /* Data byte high */
-    txBuf[3] = (value >> 16) & 0xFF;       /* Extended byte (usually 0) */
+    /* Build write command frame - STPM34 two-address format */
+    txBuf[0] = 0xFF;                /* Read address (0xFF = no read) */
+    txBuf[1] = addr;                /* Write address */
+    txBuf[2] = value & 0xFF;        /* Write data LOW byte */
+    txBuf[3] = (value >> 8) & 0xFF; /* Write data HIGH byte */
 
     /* Calculate and add CRC */
     txBuf[4] = crc_stpm3x(txBuf, 4);
@@ -515,17 +541,18 @@ static EnuEnergyMeterStatus energy_meters_process_response(void)
 /**
  * @brief Parse STPM34 response frame
  *
- * Extracts 24-bit data value from response frame.
+ * Extracts 16-bit data value from response frame.
+ * Response format: [Word1_Low][Word1_High][Word2_Low][Word2_High][CRC]
  *
  * @param[in] rxBuf Pointer to received buffer (must be at least 5 bytes)
- * @return Extracted 24-bit value as 32-bit integer
+ * @return Extracted 16-bit value from first word (little endian)
  */
 static u32 energy_meters_parse_response(u8 *rxBuf)
 {
     u32 value;
 
-    /* Extract 24-bit value from bytes 1-3 */
-    value = ((u32)rxBuf[1] << 16) | ((u32)rxBuf[2] << 8) | rxBuf[3];
+    /* Extract first 16-bit word (little endian: LOW byte, HIGH byte) */
+    value = ((u32)rxBuf[0]) | ((u32)rxBuf[1] << 8);
 
     return value;
 }
