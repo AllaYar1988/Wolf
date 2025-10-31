@@ -105,6 +105,9 @@ void energy_meters_handler(void)
 
         if (status == ENU_EM_STATUS_SUCCESS || status == ENU_EM_STATUS_TIMEOUT)
         {
+            /* End transaction - deselect chip (CS goes HIGH) */
+            energy_meter_dll_transaction_end();
+
             /* Reset complete - start writing configuration registers */
             gCurrentRegister = 0x00;  /* Start from DSP_CR1 */
             state = ENU_EM_WRITE_CONFIG_TX;
@@ -151,6 +154,9 @@ void energy_meters_handler(void)
 
         if (status == ENU_EM_STATUS_SUCCESS || status == ENU_EM_STATUS_TIMEOUT)
         {
+            /* End transaction - deselect chip (CS goes HIGH) */
+            energy_meter_dll_transaction_end();
+
             /* Move to next configuration register */
             gCurrentRegister += 2;  /* STPM34 uses 16-bit addressing */
 
@@ -187,6 +193,9 @@ void energy_meters_handler(void)
 
         if (status == ENU_EM_STATUS_SUCCESS || status == ENU_EM_STATUS_TIMEOUT)
         {
+            /* End transaction - deselect chip (CS goes HIGH) */
+            energy_meter_dll_transaction_end();
+
             /* Data latched - now we can start reading */
             gCurrentRegister = STPM34_DATA_REGS_START;
             gChipInitialized = 1;
@@ -207,6 +216,9 @@ void energy_meters_handler(void)
 
         if (status == ENU_EM_STATUS_SUCCESS)
         {
+            /* End transaction - deselect chip (CS goes HIGH) */
+            energy_meter_dll_transaction_end();
+
             /* Valid response received - move to next register */
             gCurrentRegister += 2;  /* Increment by 2 (16-bit addressing) */
 
@@ -223,6 +235,9 @@ void energy_meters_handler(void)
         }
         else if (status == ENU_EM_STATUS_TIMEOUT)
         {
+            /* End transaction on timeout - deselect chip (CS goes HIGH) */
+            energy_meter_dll_transaction_end();
+
             /* Timeout - skip this register and continue */
             gCurrentRegister += 2;
 
