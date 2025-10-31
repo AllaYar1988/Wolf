@@ -77,6 +77,7 @@ void energy_meters_handler(void)
 
     case ENU_EM_SEND_READ_REQ:
         /* Send read request (chip select handled by DLL layer) */
+    	gCurrentRegister = 0x05;
         energy_meters_send_read_req(gCurrentRegister);
 
         /* Reset timeout counter */
@@ -93,7 +94,7 @@ void energy_meters_handler(void)
             if (status == ENU_EM_STATUS_SUCCESS)
             {
                 /* Valid response received */
-                energy_meter_dll_transaction_end();
+               // energy_meter_dll_transaction_end();
 
                 /* Cycle through different registers */
                 gCurrentRegister++;
@@ -106,7 +107,7 @@ void energy_meters_handler(void)
             else if (status == ENU_EM_STATUS_TIMEOUT)
             {
                 /* Timeout occurred - end transaction and move to next register */
-                energy_meter_dll_transaction_end();
+               // energy_meter_dll_transaction_end();
 
                 /* Cycle through different registers */
                 gCurrentRegister++;

@@ -39,15 +39,31 @@ bool checkFrameCRC(char frame[], int frameSize) {
 
 
 
-// Calculate simple CRC8
+// Function to reverse the bits of a byte
+static u8 bitReverse(u8 byte) {
+    byte = ((byte & 0xF0) >> 4) | ((byte & 0x0F) << 4);
+    byte = ((byte & 0xCC) >> 2) | ((byte & 0x33) << 2);
+    byte = ((byte & 0xAA) >> 1) | ((byte & 0x55) << 1);
+    return byte;
+}
+
+// Calculate CRC8 for STPM34 with bit reversal
+// This implementation matches the STPM34 datasheet requirement for bit-reversed CRC
 u8 crc_stpm3x(u8 *data, u8 len)
 {
-    uint8_t crc = 0;
-    for (uint8_t i = 0; i < len; i++)
-    {
-        crc ^= data[i];
-        for (uint8_t j = 0; j < 8; j++)
-            crc = (crc & 0x80) ? (crc << 1) ^ 0x07 : (crc << 1);
+    u8 crc = 0; // Initial CRC value
+
+    for (u8 i = 0; i < len; i++) {
+        crc ^= bitReverse(data[i]); // Reverse bits before processing
+
+        for (u8 j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ 0x07; // Polynomial used in STPM34
+            } else {
+                crc <<= 1;
+            }
+        }
     }
-    return crc;
+
+    return bitReverse(crc); // Reverse bits of the final CRC result
 }

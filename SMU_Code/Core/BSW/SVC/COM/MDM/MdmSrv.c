@@ -664,7 +664,6 @@ void mdmResProcess(void)
 	MDMTypeDef* mdm=getMdm();
 	//MBTypeDef* mbs=getMbs();
 	static int resFlag=0;
-	DB2_Toggle
 
 
 	if(3==MAC_MdmReciveData())//1==process_AT_command())

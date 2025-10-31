@@ -151,12 +151,12 @@
  * @brief Structure to hold STPM34 energy measurement data
  */
 typedef struct {
-    int32_t ch1_active_energy;      /**< Channel 1 active energy (Wh) */
-    int32_t ch1_reactive_energy;    /**< Channel 1 reactive energy (VARh) */
-    int32_t ch1_apparent_energy;    /**< Channel 1 apparent energy (VAh) */
-    int32_t ch2_active_energy;      /**< Channel 2 active energy (Wh) */
-    int32_t ch2_reactive_energy;    /**< Channel 2 reactive energy (VARh) */
-    int32_t ch2_apparent_energy;    /**< Channel 2 apparent energy (VAh) */
+	int32_t ch1_active_energy; /**< Channel 1 active energy (Wh) */
+	int32_t ch1_reactive_energy; /**< Channel 1 reactive energy (VARh) */
+	int32_t ch1_apparent_energy; /**< Channel 1 apparent energy (VAh) */
+	int32_t ch2_active_energy; /**< Channel 2 active energy (Wh) */
+	int32_t ch2_reactive_energy; /**< Channel 2 reactive energy (VARh) */
+	int32_t ch2_apparent_energy; /**< Channel 2 apparent energy (VAh) */
 } StpmEnergyData;
 
 /**
@@ -164,12 +164,12 @@ typedef struct {
  * @brief Structure to hold STPM34 instantaneous power data
  */
 typedef struct {
-    int32_t ch1_active_power;       /**< Channel 1 active power (W) */
-    int32_t ch1_reactive_power;     /**< Channel 1 reactive power (VAR) */
-    int32_t ch1_apparent_power;     /**< Channel 1 apparent power (VA) */
-    int32_t ch2_active_power;       /**< Channel 2 active power (W) */
-    int32_t ch2_reactive_power;     /**< Channel 2 reactive power (VAR) */
-    int32_t ch2_apparent_power;     /**< Channel 2 apparent power (VA) */
+	int32_t ch1_active_power; /**< Channel 1 active power (W) */
+	int32_t ch1_reactive_power; /**< Channel 1 reactive power (VAR) */
+	int32_t ch1_apparent_power; /**< Channel 1 apparent power (VA) */
+	int32_t ch2_active_power; /**< Channel 2 active power (W) */
+	int32_t ch2_reactive_power; /**< Channel 2 reactive power (VAR) */
+	int32_t ch2_apparent_power; /**< Channel 2 apparent power (VA) */
 } StpmPowerData;
 
 /**
@@ -177,10 +177,10 @@ typedef struct {
  * @brief Structure to hold STPM34 RMS voltage and current data
  */
 typedef struct {
-    uint32_t ch1_voltage_rms;       /**< Channel 1 RMS voltage (mV) */
-    uint32_t ch1_current_rms;       /**< Channel 1 RMS current (mA) */
-    uint32_t ch2_voltage_rms;       /**< Channel 2 RMS voltage (mV) */
-    uint32_t ch2_current_rms;       /**< Channel 2 RMS current (mA) */
+	uint32_t ch1_voltage_rms; /**< Channel 1 RMS voltage (mV) */
+	uint32_t ch1_current_rms; /**< Channel 1 RMS current (mA) */
+	uint32_t ch2_voltage_rms; /**< Channel 2 RMS voltage (mV) */
+	uint32_t ch2_current_rms; /**< Channel 2 RMS current (mA) */
 } StpmRmsData;
 
 /* ========================================================================
