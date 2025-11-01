@@ -1,0 +1,8 @@
+BAT_CUT_Harness=u_BAT_CUT_P,u_BAT_CUT_N
+Comm_Harness=uCTSM_2,uGPRS_RX_2,uGPRS_TX_2,uWiFi_RX_2,uWiFi_TX_2
+Digital Input_Harness=u1_Di1_2,u2_Di2_2,u3_Di3_2,u4_Di4_2
+Memory_Harness=SDIO_D2,SDIO_D3,SDIO_CMD,SDIO_SCK,SDIO_D0,SDIO_D1,SD_Detect,uSCL,uSDA
+Power_Harness=3V9,+5V,3V3,GND
+Relay_Harness=u_Relay1,u_Relay2,u_Relay3,u_Relay4,u_Relay5,u_Do1,u_Do2,u_RelayGEN,u_RelayGRID_P,u_RelayGRID_N,u_RelayLOAD,u_RelayGenHeat
+RGB_Harness=uRGB_R,uRGB_G,uRGB_B
+RS485_Harness=uSlave_TX_2,Slave_Select_2,uSlave_RX_2,uMaster_TX_2,Master_Select_2,uMaster_RX_2,uHMI_TX_2,HMI_Select_2,uHMI_RX_2,uCAN_TX_2,CAN_Select_2,uCAN_RX_2

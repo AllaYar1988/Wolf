@@ -1,0 +1,2 @@
+Comm_Harness=uCTSM_2,uGPRS_RX_2,uGPRS_TX_2,uWiFi_RX_2,uWiFi_TX_2
+Power_Harness=3V9,+5V,3V3,GND

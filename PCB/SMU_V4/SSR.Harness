@@ -1,0 +1,4 @@
+Ext_DO_Harness=DO_1,DO_2,COM
+EXT_Power_Harness=EXT_+24V,EXT_+5V,EXT_GND
+Power_Harness=3V9,+5V,3V3,GND
+SSR_Harness=B_Do1,B_Do2

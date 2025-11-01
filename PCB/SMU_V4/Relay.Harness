@@ -1,0 +1,5 @@
+EXT_Power_Harness=EXT_+24V,EXT_+5V,EXT_GND
+Output_Relay_Poles_Harness=NORelay4,COMRelay4,NCRelay4,NORelay3,COMRelay3,NCRelay3,NORelay2,COMRelay2,NCRelay2,NORelay1,COMRelay1,NCRelay1
+Power_Harness=3V9,+5V,3V3,GND
+Relay_Harness=u_Relay1,u_Relay2,u_Relay3,u_Relay4,u_Relay5,u_Do1,u_Do2,u_RelayGEN,u_RelayGRID_P,u_RelayGRID_N,u_RelayLOAD,u_RelayGenHeat
+SSR_Harness=B_Do1,B_Do2
