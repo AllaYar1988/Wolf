@@ -20,9 +20,6 @@
 /** @brief Timeout for energy meter operations (in handler cycles) */
 #define ENERGY_METER_TIMEOUT 100
 
-/** @brief Recovery delay after timeout before retry (in handler cycles) */
-#define ENERGY_METER_TIMEOUT_RECOVERY_DELAY 50
-
 /* ========================================================================
  * Type Definitions
  * ======================================================================== */

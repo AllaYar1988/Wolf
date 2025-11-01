@@ -255,6 +255,7 @@ static void VoidFn2msFullyOpDT0(void)
 			if (0u == U16Mod_005)
 			{
 				Ctrl_Handler();
+
 			}
 
 			/*
@@ -262,7 +263,7 @@ static void VoidFn2msFullyOpDT0(void)
 			 */
 			else if (1u == U16Mod_005)
 			{
-
+				energy_meters_handler();
 			}
 
 			/*
@@ -270,7 +271,7 @@ static void VoidFn2msFullyOpDT0(void)
 			 */
 			else if (2u == U16Mod_010)
 			{
-				energy_meters_handler();
+
 
 			}
 
