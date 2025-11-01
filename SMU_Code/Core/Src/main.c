@@ -42,6 +42,7 @@
 #include "RTE_MB.h"
 #include "SMU_MNG.h"
 #include "ctrl.h"
+#include "energy_meter_dll.h"
 
 
 /* USER CODE END Includes */
@@ -187,6 +188,30 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+ * @brief UART Transmit Complete Callback
+ * Called by HAL when UART transmission completes.
+ */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == UART4) {
+        extern volatile u8 gTxComplete;
+        gTxComplete = 1;
+    }
+}
+
+/**
+ * @brief UART Receive Complete Callback
+ * Called by HAL when UART reception completes.
+ */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance == UART4) {
+        extern volatile u8 gRxComplete;
+        gRxComplete = 1;
+    }
+}
+
 
 
 

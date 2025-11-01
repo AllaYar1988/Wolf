@@ -1,0 +1,3 @@
+Ext_DI_Harness=DI_1,DI_2,DI_3,COM
+Ext_DO_Harness=DO_1,DO_2,COM
+RS485_AB_Harness=RS485_A,RS485_B,GND

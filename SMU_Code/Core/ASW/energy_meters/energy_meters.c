@@ -25,17 +25,59 @@ static u32 gEnergyMeterTimeout = 0;
 /** @brief Last received data from STPM34 */
 static u32 gLastReadValue = 0;
 
-/** @brief Current register address being read */
+/** @brief Current register address being read/written */
 static u8 gCurrentRegister = 0;
+
+/** @brief Previous register address (for delayed response protocol) */
+static u8 gPreviousRegister = 0xFF;
+
+/** @brief Flag indicating if we should store response data (delayed response handling) */
+static u8 gStoreResponseData = 0;
 
 /** @brief Timeout occurrence counter (for diagnostics) */
 static u32 gTimeoutCount = 0;
+
+/** @brief Configuration complete flag */
+static u8 gConfigComplete = 0;
+
+/** @brief Chip initialized flag */
+static u8 gChipInitialized = 0;
 
 /** @brief CRC error counter (for diagnostics) */
 static u32 gCrcErrorCount = 0;
 
 /** @brief Successful transaction counter (for diagnostics) */
 static u32 gSuccessCount = 0;
+
+/** @brief Voltage calibration factor (multiplier for voltage readings) */
+static float gVoltageCal = 1.0f;
+
+/** @brief Current calibration factor (multiplier for current readings) */
+static float gCurrentCal = 1.0f;
+
+/** @brief Cached channel 1 active power (in Watts) */
+static float gCh1ActivePower = 0.0f;
+
+/** @brief Cached channel 1 reactive power (in VAR) */
+static float gCh1ReactivePower = 0.0f;
+
+/** @brief Cached channel 1 RMS voltage (in Volts) */
+static float gCh1RmsVoltage = 0.0f;
+
+/** @brief Cached channel 1 RMS current (in mA) */
+static float gCh1RmsCurrent = 0.0f;
+
+/** @brief Cached channel 2 active power (in Watts) */
+static float gCh2ActivePower = 0.0f;
+
+/** @brief Cached channel 2 reactive power (in VAR) */
+static float gCh2ReactivePower = 0.0f;
+
+/** @brief Cached channel 2 RMS voltage (in Volts) */
+static float gCh2RmsVoltage = 0.0f;
+
+/** @brief Cached channel 2 RMS current (in mA) */
+static float gCh2RmsCurrent = 0.0f;
 
 /* ========================================================================
  * Static Function Prototypes
@@ -45,6 +87,11 @@ static u8 energy_meters_send_read_req(u8 addr);
 static u8 energy_meters_send_write_req(u8 addr, u32 value);
 static EnuEnergyMeterStatus energy_meters_process_response(void);
 static u32 energy_meters_parse_response(u8 *rxBuf);
+static int32_t energy_meters_convert_to_signed(u32 rawValue);
+static float energy_meters_convert_voltage(u32 rawValue);
+static float energy_meters_convert_current(u32 rawValue);
+static float energy_meters_convert_power(u32 rawValue);
+static void energy_meters_update_cached_values(u8 regAddr, u32 rawValue);
 
 /* ========================================================================
  * Public Function Implementations
@@ -53,83 +100,289 @@ static u32 energy_meters_parse_response(u8 *rxBuf);
 /**
  * @brief Main energy meter handler state machine
  *
- * Implements state machine for periodic energy meter communication.
- * Call this function periodically (e.g., every 10ms).
+ * Implements complete STPM34 initialization and communication state machine.
+ * Must be called periodically (e.g., every 10-50ms).
+ *
+ * Initialization sequence:
+ * 1. Hardware init (UART, GPIO)
+ * 2. Software reset chip
+ * 3. Write all configuration registers
+ * 4. Latch data
+ * 5. Read data registers continuously
  */
-void energy_meters_handler(void)
-{
-    static EnuEnrgyMeterState state = ENU_EM_INIT;
+void energy_meters_handler(void) {
+	static EnuEnrgyMeterState state = ENU_EM_INIT;
+	EnuEnergyMeterStatus status;
 
-    switch(state)
-    {
-    case ENU_EM_INIT:
-        /* Initialize hardware */
-        energy_meters_hal_init();
+	switch (state) {
+	case ENU_EM_INIT:
+		/* Initialize hardware (UART, GPIO, DMA) */
+		energy_meters_hal_init();
+		energy_meter_dll_receive_init();
 
-        /* Initialize DMA reception */
-        energy_meter_dll_receive_init();
+		/* Start initialization sequence with chip reset */
+		state = ENU_EM_RESET_CHIP_TX;
+		break;
 
-        /* Start with register 0x05 (DSP_CR5) */
-        gCurrentRegister = STPM34_REG_DSP_CR5;
 
-        state = ENU_EM_SEND_READ_REQ;
-        break;
+	case ENU_EM_RESET_CHIP_TX:
+		/* Send software reset command via DSP_CR3 register */
+	{
+		u32 dsp_cr3_value = STPM34_DSP_CR3_DEFAULT |
+		STPM34_DSP_CR3_SW_RESET |
+		STPM34_DSP_CR3_SW_LATCH1 |
+		STPM34_DSP_CR3_SW_LATCH2;
+        /* Start with Channel 1 Active Power register */
+        gCurrentRegister = STPM34_REG_CH1_ACTIVE_POWER;
 
-    case ENU_EM_SEND_READ_REQ:
-        /* Send read request (chip select handled by DLL layer) */
-    	gCurrentRegister = 0x05;
-        energy_meters_send_read_req(gCurrentRegister);
+		/* Note: sampleCode reads 0x05 while writing DSP_CR3 during reset */
+		u8 txBuf[STPM34_FRAME_SIZE];
+		txBuf[0] = 0x05; /* Read address 0x05 */
+		txBuf[1] = STPM34_REG_DSP_CR3; /* Write DSP_CR3 */
+		txBuf[2] = dsp_cr3_value & 0xFF; /* Data LOW */
+		txBuf[3] = (dsp_cr3_value >> 8) & 0xFF; /* Data HIGH */
+		txBuf[4] = crc_stpm3x(txBuf, 4); /* CRC */
+		energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
 
-        /* Reset timeout counter */
-        gEnergyMeterTimeout = 0;
+		gEnergyMeterTimeout = 0;
+		state = ENU_EM_RESET_CHIP_RX;
+	}
+		break;
 
-        state = ENU_EM_WAIT_FOR_RESPONSE;
-        break;
+	case ENU_EM_RESET_CHIP_RX:
+		/* Wait for reset confirmation */
+		status = energy_meters_process_response();
 
-    case ENU_EM_WAIT_FOR_RESPONSE:
-        /* Process response from STPM34 */
-        {
-            EnuEnergyMeterStatus status = energy_meters_process_response();
+		if (status == ENU_EM_STATUS_SUCCESS
+				|| status == ENU_EM_STATUS_TIMEOUT) {
+			/* End transaction - deselect chip (CS goes HIGH) */
+			energy_meter_dll_transaction_end();
 
-            if (status == ENU_EM_STATUS_SUCCESS)
+			/* Reset complete - start writing configuration registers */
+			gCurrentRegister = 0x00; /* Start from DSP_CR1 */
+			state = ENU_EM_WRITE_CONFIG_TX;
+		}
+		break;
+
+	case ENU_EM_WRITE_CONFIG_TX:
+		/* Write configuration registers sequentially */
+	{
+		u32 reg_value = 0; /* Default value */
+
+		/* Set specific register values based on address */
+		switch (gCurrentRegister) {
+		case STPM34_REG_DSP_CR3:
+			reg_value = STPM34_DSP_CR3_DEFAULT; /* No reset/latch bits */
+			break;
+		case STPM34_REG_DFE_CR1:
+			reg_value = 0x00000300; /* Enable CH1, Gain=2 */
+			break;
+		case STPM34_REG_DFE_CR2:
+			reg_value = 0x00000300; /* Enable CH2, Gain=2 */
+			break;
+		case STPM34_REG_US_REG1:
+			reg_value = STPM34_US_REG1_DEFAULT; /* CRC enabled */
+			break;
+		case STPM34_REG_US_REG2:
+			reg_value = STPM34_US_REG2_DEFAULT; /* Baud rate */
+			break;
+		default:
+			reg_value = 0; /* Other registers use default 0 */
+			break;
+		}
+
+		/* sampleCode reads 0x01 while writing config registers */
+		u8 txBuf[STPM34_FRAME_SIZE];
+		txBuf[0] = 0x01; /* Read address 0x01 */
+		txBuf[1] = gCurrentRegister; /* Write target register */
+		txBuf[2] = reg_value & 0xFF; /* Data LOW */
+		txBuf[3] = (reg_value >> 8) & 0xFF; /* Data HIGH */
+		txBuf[4] = crc_stpm3x(txBuf, 4); /* CRC */
+		energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+
+		gEnergyMeterTimeout = 0;
+		state = ENU_EM_WRITE_CONFIG_RX;
+	}
+		break;
+
+	case ENU_EM_WRITE_CONFIG_RX:
+		/* Wait for write confirmation */
+		status = energy_meters_process_response();
+
+		if (status == ENU_EM_STATUS_SUCCESS
+				|| status == ENU_EM_STATUS_TIMEOUT) {
+			/* End transaction - deselect chip (CS goes HIGH) */
+			energy_meter_dll_transaction_end();
+
+			/* Move to next configuration register */
+			gCurrentRegister += 2; /* STPM34 uses 16-bit addressing */
+
+			if (gCurrentRegister > STPM34_CONFIG_REGS_END) {
+				/* All config registers written - proceed to data latching */
+				gConfigComplete = 1;
+				state = ENU_EM_LATCH_DATA_TX;
+			} else {
+				/* Write next register */
+				state = ENU_EM_WRITE_CONFIG_TX;
+			}
+		}
+		break;
+
+	case ENU_EM_LATCH_DATA_TX:
+		/* Send latch command to freeze data registers for reading */
+	{
+		u32 dsp_cr3_value = STPM34_DSP_CR3_DEFAULT |
+		STPM34_DSP_CR3_SW_LATCH1 |
+		STPM34_DSP_CR3_SW_LATCH2;
+
+		/* sampleCode uses 0xFF (no read) for latch operations */
+		u8 txBuf[STPM34_FRAME_SIZE];
+		txBuf[0] = 0xFF; /* No read */
+		txBuf[1] = STPM34_REG_DSP_CR3; /* Write DSP_CR3 */
+		txBuf[2] = dsp_cr3_value & 0xFF; /* Data LOW */
+		txBuf[3] = (dsp_cr3_value >> 8) & 0xFF; /* Data HIGH */
+		txBuf[4] = crc_stpm3x(txBuf, 4); /* CRC */
+		energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+
+		gEnergyMeterTimeout = 0;
+		state = ENU_EM_LATCH_DATA_RX;
+	}
+		break;
+
+	case ENU_EM_LATCH_DATA_RX:
+		/* Wait for latch confirmation */
+		status = energy_meters_process_response();
+
+		if (status == ENU_EM_STATUS_SUCCESS
+				|| status == ENU_EM_STATUS_TIMEOUT) {
+			/* End transaction - deselect chip (CS goes HIGH) */
+			energy_meter_dll_transaction_end();
+
+			/* Data latched - now we can start reading */
+			gCurrentRegister = STPM34_DATA_REGS_START;
+			gPreviousRegister = 0xFF; /* Reset previous register tracking */
+			gStoreResponseData = 0; /* First read is dummy (delayed response) */
+			gChipInitialized = 1;
+			state = ENU_EM_SEND_READ_REQ;
+		}
+		break;
+
+	case ENU_EM_SEND_READ_REQ:
+		/* Send read request for data register */
+		energy_meters_send_read_req(gCurrentRegister);
+		gEnergyMeterTimeout = 0;
+		state = ENU_EM_WAIT_FOR_RESPONSE;
+		break;
+
+	case ENU_EM_WAIT_FOR_RESPONSE:
+		/* Process response from STPM34 */
+		status = energy_meters_process_response();
+
+		if (status == ENU_EM_STATUS_SUCCESS) {
+			/* End transaction - deselect chip (CS goes HIGH) */
+			energy_meter_dll_transaction_end();
+
+            /* NOTE: Due to STPM34 delayed response protocol, the received data
+             * is from the PREVIOUS read command, not the current one.
+             * First read after latch returns dummy/garbage data. */
+
+			if (gStoreResponseData
+					&& gPreviousRegister >= STPM34_DATA_REGS_START) {
+				/* Store response to PREVIOUS register address */
+				/* TODO: Add data storage array when needed (currently only tracking last value) */
+				/* regData[gPreviousRegister] = gLastReadValue; */
+			}
+
+			/* Update tracking for next iteration */
+			gPreviousRegister = gCurrentRegister;
+			gStoreResponseData = 1; /* After first read, start storing data */
+
+			/* Move to next register */
+			gCurrentRegister += 2; /* Increment by 2 (16-bit addressing) */
+
+			if (gCurrentRegister > STPM34_DATA_REGS_END) {
+				/* All registers read - latch new data and restart */
+				state = ENU_EM_LATCH_DATA_TX;
+			} else {
+				/* Read next register */
+				state = ENU_EM_SEND_READ_REQ;
+			}
+		} else if (status == ENU_EM_STATUS_TIMEOUT) {
+			/* End transaction on timeout - deselect chip (CS goes HIGH) */
+			energy_meter_dll_transaction_end();
+
+			/* Update tracking even on timeout */
+			gPreviousRegister = gCurrentRegister;
+			gStoreResponseData = 1;
+
+            /* Timeout - skip this register and continue */
+            gCurrentRegister += 2;
+
+            if (gCurrentRegister > STPM34_DATA_REGS_END)
             {
-                /* Valid response received */
-               // energy_meter_dll_transaction_end();
+                state = ENU_EM_LATCH_DATA_TX;
+            }
+            else
+            {
 
-                /* Cycle through different registers */
-                gCurrentRegister++;
-                if (gCurrentRegister > STPM34_REG_DSP_CR11) {
-                    gCurrentRegister = STPM34_REG_DSP_CR5;
+
+
+                state = ENU_EM_SEND_READ_REQ;
+
+                /* Valid response received - update cached values */
+                energy_meters_update_cached_values(gCurrentRegister, gLastReadValue);
+
+                /* Cycle through measurement registers:
+                 * CH1: Active Power -> Reactive Power -> Voltage -> Current
+                 * CH2: Active Power -> Reactive Power -> Voltage -> Current
+                 */
+                switch (gCurrentRegister)
+                {
+                    case STPM34_REG_CH1_ACTIVE_POWER:
+                        gCurrentRegister = STPM34_REG_CH1_REACTIVE_POWER;
+                        break;
+                    case STPM34_REG_CH1_REACTIVE_POWER:
+                        gCurrentRegister = STPM34_REG_CH1_VOLTAGE_RMS;
+                        break;
+                    case STPM34_REG_CH1_VOLTAGE_RMS:
+                        gCurrentRegister = STPM34_REG_CH1_CURRENT_RMS;
+                        break;
+                    case STPM34_REG_CH1_CURRENT_RMS:
+                        gCurrentRegister = STPM34_REG_CH2_ACTIVE_POWER;
+                        break;
+                    case STPM34_REG_CH2_ACTIVE_POWER:
+                        gCurrentRegister = STPM34_REG_CH2_REACTIVE_POWER;
+                        break;
+                    case STPM34_REG_CH2_REACTIVE_POWER:
+                        gCurrentRegister = STPM34_REG_CH2_VOLTAGE_RMS;
+                        break;
+                    case STPM34_REG_CH2_VOLTAGE_RMS:
+                        gCurrentRegister = STPM34_REG_CH2_CURRENT_RMS;
+                        break;
+                    case STPM34_REG_CH2_CURRENT_RMS:
+                        /* Wrap back to start */
+                        gCurrentRegister = STPM34_REG_CH1_ACTIVE_POWER;
+                        break;
+                    default:
+                        /* Unknown register - reset to start */
+                        gCurrentRegister = STPM34_REG_CH1_ACTIVE_POWER;
+                        break;
                 }
 
                 state = ENU_EM_SEND_READ_REQ;
             }
-            else if (status == ENU_EM_STATUS_TIMEOUT)
-            {
-                /* Timeout occurred - end transaction and move to next register */
-               // energy_meter_dll_transaction_end();
-
-                /* Cycle through different registers */
-                gCurrentRegister++;
-                if (gCurrentRegister > STPM34_REG_DSP_CR11) {
-                    gCurrentRegister = STPM34_REG_DSP_CR5;
-                }
-
-                state = ENU_EM_SEND_READ_REQ;
-            }
-            else if (status == ENU_EM_STATUS_CRC_ERROR)
-            {
-                /* CRC error - increment timeout and keep waiting */
-                /* Transaction continues, might get valid data next time */
-            }
-            /* else ENU_EM_STATUS_IDLE - continue waiting */
         }
+        /* else ENU_EM_STATUS_IDLE or CRC_ERROR - keep waiting */
         break;
 
-    case ENU_EM_STOP:
-        /* Idle state - do nothing */
-        break;
-    }
+	case ENU_EM_IDLE:
+		/* Idle state - wait for next cycle */
+		break;
+
+	case ENU_EM_STOP:
+		/* Error/stop state - do nothing */
+		break;
+	}
 }
 
 /**
@@ -145,34 +398,33 @@ void energy_meters_handler(void)
  * @note This is a blocking function that manages chip select automatically
  * @note For periodic register reading, use energy_meters_handler() state machine instead
  */
-u8 energy_meters_read_register(u8 addr, u32 *value)
-{
-    u8 txBuf[STPM34_FRAME_SIZE];
-    u8 returnValue = 0;
+u8 energy_meters_read_register(u8 addr, u32 *value) {
+	u8 txBuf[STPM34_FRAME_SIZE];
+	u8 returnValue = 0;
 
-    /* Build read command frame */
-    txBuf[0] = addr | STPM34_READ_BIT;  /* Address with read bit set */
-    txBuf[1] = 0xFF;  /* Dummy bytes for response */
-    txBuf[2] = 0xFF;
-    txBuf[3] = 0xFF;
+	/* Build read command frame */
+	txBuf[0] = addr | STPM34_READ_BIT; /* Address with read bit set */
+	txBuf[1] = 0xFF; /* Dummy bytes for response */
+	txBuf[2] = 0xFF;
+	txBuf[3] = 0xFF;
 
-    /* Calculate CRC for the frame */
-    txBuf[4] = crc_stpm3x(txBuf, 4);
+	/* Calculate CRC for the frame */
+	txBuf[4] = crc_stpm3x(txBuf, 4);
 
-    /* Send frame via DLL (chip select handled by DLL) */
-    energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+	/* Send frame via DLL (chip select handled by DLL) */
+	energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
 
-    /* Note: Should wait for response and call energy_meter_dll_transaction_end() */
-    /* For now, transaction end should be called by the caller after waiting */
-    /* Typically this function is not used - the state machine handles communication */
+	/* Note: Should wait for response and call energy_meter_dll_transaction_end() */
+	/* For now, transaction end should be called by the caller after waiting */
+	/* Typically this function is not used - the state machine handles communication */
 
-    /* Value will be available in next transaction */
-    if (value != NULL) {
-        *value = gLastReadValue;
-        returnValue = 1;
-    }
+	/* Value will be available in next transaction */
+	if (value != NULL) {
+		*value = gLastReadValue;
+		returnValue = 1;
+	}
 
-    return returnValue;
+	return returnValue;
 }
 
 /**
@@ -182,9 +434,8 @@ u8 energy_meters_read_register(u8 addr, u32 *value)
  * @param[in] value Value to write (24-bit)
  * @return 1 if successful, 0 if failed
  */
-u8 energy_meters_write_register(u8 addr, u32 value)
-{
-    return energy_meters_send_write_req(addr, value);
+u8 energy_meters_write_register(u8 addr, u32 value) {
+	return energy_meters_send_write_req(addr, value);
 }
 
 /**
@@ -192,9 +443,8 @@ u8 energy_meters_write_register(u8 addr, u32 value)
  *
  * @return Last value read from STPM34
  */
-u32 energy_meters_get_last_value(void)
-{
-    return gLastReadValue;
+u32 energy_meters_get_last_value(void) {
+	return gLastReadValue;
 }
 
 /**
@@ -207,19 +457,19 @@ u32 energy_meters_get_last_value(void)
  * @param[out] timeout_count Pointer to store timeout occurrence count (can be NULL)
  * @param[out] crc_error_count Pointer to store CRC error count (can be NULL)
  */
-void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count, u32 *crc_error_count)
-{
-    if (success_count != NULL) {
-        *success_count = gSuccessCount;
-    }
+void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count,
+		u32 *crc_error_count) {
+	if (success_count != NULL) {
+		*success_count = gSuccessCount;
+	}
 
-    if (timeout_count != NULL) {
-        *timeout_count = gTimeoutCount;
-    }
+	if (timeout_count != NULL) {
+		*timeout_count = gTimeoutCount;
+	}
 
-    if (crc_error_count != NULL) {
-        *crc_error_count = gCrcErrorCount;
-    }
+	if (crc_error_count != NULL) {
+		*crc_error_count = gCrcErrorCount;
+	}
 }
 
 /**
@@ -228,11 +478,22 @@ void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count, u32 *c
  * Resets all diagnostic counters (success, timeout, CRC errors) to zero.
  * Useful for periodic statistics collection or after maintenance operations.
  */
-void energy_meters_reset_statistics(void)
-{
-    gSuccessCount = 0;
-    gTimeoutCount = 0;
-    gCrcErrorCount = 0;
+void energy_meters_reset_statistics(void) {
+	gSuccessCount = 0;
+	gTimeoutCount = 0;
+	gCrcErrorCount = 0;
+}
+
+/**
+ * @brief Check if STPM34 initialization is complete
+ *
+ * Returns the initialization status. The chip must complete initialization
+ * (reset, configuration, and first data latch) before valid data can be read.
+ *
+ * @return 1 if initialization complete and chip is ready, 0 otherwise
+ */
+u8 energy_meters_is_initialized(void) {
+	return gChipInitialized;
 }
 
 /* ========================================================================
@@ -243,59 +504,60 @@ void energy_meters_reset_statistics(void)
  * @brief Send read request to STPM34
  *
  * Builds read command frame and sends via DLL layer.
- * Chip select is handled by DLL transaction functions.
+ * STPM34 protocol uses TWO addresses per frame: read addr and write addr.
  *
  * @param[in] addr Register address to read
  * @return Always returns 1
+ *
+ * @note Frame format: [ReadAddr][WriteAddr=0xFF][DataLow=0xFF][DataHigh=0xFF][CRC]
  */
-static u8 energy_meters_send_read_req(u8 addr)
-{
-    u8 txBuf[STPM34_FRAME_SIZE];
+static u8 energy_meters_send_read_req(u8 addr) {
+	u8 txBuf[STPM34_FRAME_SIZE];
 
-    /* Build read command frame */
-    txBuf[0] = addr | STPM34_READ_BIT;  /* Address with read bit set */
-    txBuf[1] = 0xFF;  /* Dummy bytes */
-    txBuf[2] = 0xFF;
-    txBuf[3] = 0xFF;
+	/* Build read command frame - STPM34 two-address format */
+	txBuf[0] = addr; /* Read address */
+	txBuf[1] = 0xFF; /* Write address (0xFF = no write) */
+	txBuf[2] = 0xFF; /* Write data LOW byte (dummy) */
+	txBuf[3] = 0xFF; /* Write data HIGH byte (dummy) */
 
-    /* Calculate and add CRC */
-    txBuf[4] = crc_stpm3x(txBuf, 4);
+	/* Calculate and add CRC */
+	txBuf[4] = crc_stpm3x(txBuf, 4);
 
-    /* Send via DLL (chip select handled by DLL) */
-    energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+	/* Send via DLL (chip select handled by DLL) */
+	energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
 
-    return 1;
+	return 1;
 }
 
 /**
  * @brief Send write request to STPM34
  *
  * Builds write command frame and sends via DLL layer.
- * Chip select is handled by DLL transaction functions.
+ * STPM34 protocol uses TWO addresses per frame: read addr and write addr.
  *
  * @param[in] addr Register address to write
- * @param[in] value 24-bit value to write
+ * @param[in] value 16-bit value to write
  * @return Always returns 1
  *
+ * @note Frame format: [ReadAddr=0xFF][WriteAddr][DataLow][DataHigh][CRC]
  * @note Caller should call energy_meter_dll_transaction_end() after write completes
  */
-static u8 energy_meters_send_write_req(u8 addr, u32 value)
-{
-    u8 txBuf[STPM34_FRAME_SIZE];
+static u8 energy_meters_send_write_req(u8 addr, u32 value) {
+	u8 txBuf[STPM34_FRAME_SIZE];
 
-    /* Build write command frame */
-    txBuf[0] = addr & (~STPM34_READ_BIT);  /* Address with read bit clear */
-    txBuf[1] = (value >> 16) & 0xFF;       /* MSB */
-    txBuf[2] = (value >> 8) & 0xFF;        /* Mid byte */
-    txBuf[3] = value & 0xFF;                /* LSB */
+	/* Build write command frame - STPM34 two-address format */
+	txBuf[0] = 0xFF; /* Read address (0xFF = no read) */
+	txBuf[1] = addr; /* Write address */
+	txBuf[2] = value & 0xFF; /* Write data LOW byte */
+	txBuf[3] = (value >> 8) & 0xFF; /* Write data HIGH byte */
 
-    /* Calculate and add CRC */
-    txBuf[4] = crc_stpm3x(txBuf, 4);
+	/* Calculate and add CRC */
+	txBuf[4] = crc_stpm3x(txBuf, 4);
 
-    /* Send via DLL (chip select handled by DLL) */
-    energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
+	/* Send via DLL (chip select handled by DLL) */
+	energy_meter_dll_transaction_send(txBuf, STPM34_FRAME_SIZE);
 
-    return 1;
+	return 1;
 }
 
 /**
@@ -310,77 +572,306 @@ static u8 energy_meters_send_write_req(u8 addr, u32 value)
  *         - ENU_EM_STATUS_CRC_ERROR: Data received but CRC invalid
  *         - ENU_EM_STATUS_IDLE: Still waiting for response
  */
-static EnuEnergyMeterStatus energy_meters_process_response(void)
-{
-    EnuEnergyMeterStatus status = ENU_EM_STATUS_IDLE;
-    u16 bytesReceived;
+static EnuEnergyMeterStatus energy_meters_process_response(void) {
+	EnuEnergyMeterStatus status = ENU_EM_STATUS_IDLE;
+	u16 bytesReceived;
 
-    /* Check for received data */
-    bytesReceived = energy_meter_dll_receive();
+	/* Check for received data */
+	bytesReceived = energy_meter_dll_receive();
 
-    if (bytesReceived >= STPM34_FRAME_SIZE)
-    {
-        u8 *rxBuf = energy_meter_dll_get_rx_buffer();
+	if (bytesReceived >= STPM34_FRAME_SIZE) {
+		u8 *rxBuf = energy_meter_dll_get_rx_buffer();
 
-        /* Verify CRC */
-        u8 receivedCrc = rxBuf[4];
-        u8 calculatedCrc = crc_stpm3x(rxBuf, 4);
+		/* Verify CRC */
+		u8 receivedCrc = rxBuf[4];
+		u8 calculatedCrc = crc_stpm3x(rxBuf, 4);
 
-        if (receivedCrc == calculatedCrc)
-        {
-            /* Valid response received - parse and store the 24-bit value */
-            gLastReadValue = energy_meters_parse_response(rxBuf);
+		if (receivedCrc == calculatedCrc) {
+			/* Valid response received - parse and store the 24-bit value */
+			gLastReadValue = energy_meters_parse_response(rxBuf);
 
-            /* Reset timeout counter */
-            gEnergyMeterTimeout = 0;
+			/* Reset timeout counter */
+			gEnergyMeterTimeout = 0;
 
-            /* Increment success counter */
-            gSuccessCount++;
+			/* Increment success counter */
+			gSuccessCount++;
 
-            status = ENU_EM_STATUS_SUCCESS;
-        }
-        else
-        {
-            /* CRC validation failed */
-            gCrcErrorCount++;
-            status = ENU_EM_STATUS_CRC_ERROR;
+			status = ENU_EM_STATUS_SUCCESS;
+		} else {
+			/* CRC validation failed */
+			gCrcErrorCount++;
+			status = ENU_EM_STATUS_CRC_ERROR;
 
-            /* Continue incrementing timeout for CRC errors */
-            gEnergyMeterTimeout++;
-        }
-    }
-    else
-    {
-        /* No data received yet - increment timeout counter */
-        gEnergyMeterTimeout++;
-    }
+			/* Continue incrementing timeout for CRC errors */
+			gEnergyMeterTimeout++;
+		}
+	} else {
+		/* No data received yet - increment timeout counter */
+		gEnergyMeterTimeout++;
+	}
 
-    /* Check if timeout reached */
-    if (gEnergyMeterTimeout > ENERGY_METER_TIMEOUT)
-    {
-        /* Timeout occurred */
-        gEnergyMeterTimeout = 0;
-        gTimeoutCount++;
-        status = ENU_EM_STATUS_TIMEOUT;
-    }
+	/* Check if timeout reached */
+	if (gEnergyMeterTimeout > ENERGY_METER_TIMEOUT) {
+		/* Timeout occurred */
+		gEnergyMeterTimeout = 0;
+		gTimeoutCount++;
+		status = ENU_EM_STATUS_TIMEOUT;
+	}
 
-    return status;
+	return status;
 }
 
 /**
  * @brief Parse STPM34 response frame
  *
- * Extracts 24-bit data value from response frame.
+ * Extracts 16-bit data value from response frame.
+ * Response format: [Word1_Low][Word1_High][Word2_Low][Word2_High][CRC]
  *
  * @param[in] rxBuf Pointer to received buffer (must be at least 5 bytes)
- * @return Extracted 24-bit value as 32-bit integer
+ * @return Extracted 16-bit value from first word (little endian)
  */
-static u32 energy_meters_parse_response(u8 *rxBuf)
+static u32 energy_meters_parse_response(u8 *rxBuf) {
+	u32 value;
+
+	/* Extract first 16-bit word (little endian: LOW byte, HIGH byte) */
+	value = ((u32) rxBuf[0]) | ((u32) rxBuf[1] << 8);
+
+	return value;
+}
+
+/**
+ * @brief Convert 24-bit unsigned value to signed integer
+ *
+ * STPM34 uses 24-bit two's complement representation for signed values.
+ * This function converts from unsigned 24-bit to signed 32-bit.
+ *
+ * @param[in] rawValue Raw 24-bit value from STPM34 register
+ * @return Signed 32-bit integer value
+ */
+static int32_t energy_meters_convert_to_signed(u32 rawValue)
 {
-    u32 value;
+    int32_t signedValue;
 
-    /* Extract 24-bit value from bytes 1-3 */
-    value = ((u32)rxBuf[1] << 16) | ((u32)rxBuf[2] << 8) | rxBuf[3];
+    /* Check if sign bit (bit 23) is set */
+    if (rawValue & 0x800000)
+    {
+        /* Negative value - extend sign to 32 bits */
+        signedValue = (int32_t)(rawValue | 0xFF000000);
+    }
+    else
+    {
+        /* Positive value */
+        signedValue = (int32_t)rawValue;
+    }
 
-    return value;
+    return signedValue;
+}
+
+/**
+ * @brief Convert raw voltage value to Volts
+ *
+ * Converts STPM34 raw voltage reading to calibrated voltage in Volts.
+ *
+ * @param[in] rawValue Raw 24-bit voltage value from STPM34
+ * @return Voltage in Volts (V)
+ */
+static float energy_meters_convert_voltage(u32 rawValue)
+{
+    int32_t signedValue = energy_meters_convert_to_signed(rawValue);
+    float voltage_mV = (float)signedValue * STPM34_VOLTAGE_LSB_MV;
+    float voltage_V = (voltage_mV / 1000.0f) * gVoltageCal;
+
+    return voltage_V;
+}
+
+/**
+ * @brief Convert raw current value to milliamps
+ *
+ * Converts STPM34 raw current reading to calibrated current in mA.
+ *
+ * @param[in] rawValue Raw 24-bit current value from STPM34
+ * @return Current in milliamps (mA)
+ */
+static float energy_meters_convert_current(u32 rawValue)
+{
+    int32_t signedValue = energy_meters_convert_to_signed(rawValue);
+    float current_mA = (float)signedValue * STPM34_CURRENT_LSB_MA * gCurrentCal;
+
+    return current_mA;
+}
+
+/**
+ * @brief Convert raw power value to Watts
+ *
+ * Converts STPM34 raw power reading to power in Watts or VAR.
+ * Works for both active and reactive power.
+ *
+ * @param[in] rawValue Raw 24-bit power value from STPM34
+ * @return Power in Watts (W) or VAR
+ */
+static float energy_meters_convert_power(u32 rawValue)
+{
+    int32_t signedValue = energy_meters_convert_to_signed(rawValue);
+    float power_mW = (float)signedValue * STPM34_POWER_LSB_MW;
+    float power_W = (power_mW / 1000.0f) * gVoltageCal * gCurrentCal;
+
+    return power_W;
+}
+
+/**
+ * @brief Update cached measurement values based on register address
+ *
+ * This function is called when a successful register read occurs.
+ * It converts the raw value to engineering units and stores it in
+ * the appropriate cached variable for later retrieval.
+ *
+ * @param[in] regAddr Register address that was read
+ * @param[in] rawValue Raw 24-bit value from the register
+ */
+static void energy_meters_update_cached_values(u8 regAddr, u32 rawValue)
+{
+    switch (regAddr)
+    {
+        case STPM34_REG_CH1_ACTIVE_POWER:
+            gCh1ActivePower = energy_meters_convert_power(rawValue);
+            break;
+
+        case STPM34_REG_CH1_REACTIVE_POWER:
+            gCh1ReactivePower = energy_meters_convert_power(rawValue);
+            break;
+
+        case STPM34_REG_CH1_VOLTAGE_RMS:
+            gCh1RmsVoltage = energy_meters_convert_voltage(rawValue);
+            break;
+
+        case STPM34_REG_CH1_CURRENT_RMS:
+            gCh1RmsCurrent = energy_meters_convert_current(rawValue);
+            break;
+
+        case STPM34_REG_CH2_ACTIVE_POWER:
+            gCh2ActivePower = energy_meters_convert_power(rawValue);
+            break;
+
+        case STPM34_REG_CH2_REACTIVE_POWER:
+            gCh2ReactivePower = energy_meters_convert_power(rawValue);
+            break;
+
+        case STPM34_REG_CH2_VOLTAGE_RMS:
+            gCh2RmsVoltage = energy_meters_convert_voltage(rawValue);
+            break;
+
+        case STPM34_REG_CH2_CURRENT_RMS:
+            gCh2RmsCurrent = energy_meters_convert_current(rawValue);
+            break;
+
+        default:
+            /* Unknown register - do nothing */
+            break;
+    }
+}
+
+/**
+ * @brief Set calibration factors for voltage and current measurements
+ *
+ * Calibration factors are multipliers applied to all measurements to
+ * compensate for sensor inaccuracies, resistor tolerances, etc.
+ *
+ * @param[in] voltage_cal Voltage calibration factor (typically 0.9 - 1.1)
+ * @param[in] current_cal Current calibration factor (typically 0.9 - 1.1)
+ *
+ * @note Default values are 1.0 (no calibration)
+ * @note Power calibration is automatically voltage_cal * current_cal
+ */
+void energy_meters_set_calibration(float voltage_cal, float current_cal)
+{
+    gVoltageCal = voltage_cal;
+    gCurrentCal = current_cal;
+}
+
+/**
+ * @brief Read active power from specified channel
+ *
+ * Returns the most recently measured active power value for the
+ * specified channel. Values are automatically updated by the
+ * energy_meters_handler() state machine.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return Active power in Watts (W), or 0.0 if channel invalid
+ *
+ * @note Ensure energy_meters_handler() is called periodically to update values
+ */
+float energy_meters_read_active_power(u8 channel)
+{
+    if (channel == 1) {
+        return gCh1ActivePower;
+    } else if (channel == 2) {
+        return gCh2ActivePower;
+    }
+    return 0.0f;
+}
+
+/**
+ * @brief Read reactive power from specified channel
+ *
+ * Returns the most recently measured reactive power value for the
+ * specified channel. Values are automatically updated by the
+ * energy_meters_handler() state machine.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return Reactive power in VAR, or 0.0 if channel invalid
+ *
+ * @note Ensure energy_meters_handler() is called periodically to update values
+ */
+float energy_meters_read_reactive_power(u8 channel)
+{
+    if (channel == 1) {
+        return gCh1ReactivePower;
+    } else if (channel == 2) {
+        return gCh2ReactivePower;
+    }
+    return 0.0f;
+}
+
+/**
+ * @brief Read RMS current from specified channel
+ *
+ * Returns the most recently measured RMS current value for the
+ * specified channel. Values are automatically updated by the
+ * energy_meters_handler() state machine.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return RMS current in milliamps (mA), or 0.0 if channel invalid
+ *
+ * @note Ensure energy_meters_handler() is called periodically to update values
+ */
+float energy_meters_read_rms_current(u8 channel)
+{
+    if (channel == 1) {
+        return gCh1RmsCurrent;
+    } else if (channel == 2) {
+        return gCh2RmsCurrent;
+    }
+    return 0.0f;
+}
+
+/**
+ * @brief Read RMS voltage from specified channel
+ *
+ * Returns the most recently measured RMS voltage value for the
+ * specified channel. Values are automatically updated by the
+ * energy_meters_handler() state machine.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return RMS voltage in Volts (V), or 0.0 if channel invalid
+ *
+ * @note Ensure energy_meters_handler() is called periodically to update values
+ */
+float energy_meters_read_rms_voltage(u8 channel)
+{
+    if (channel == 1) {
+        return gCh1RmsVoltage;
+    } else if (channel == 2) {
+        return gCh2RmsVoltage;
+    }
+    return 0.0f;
 }
