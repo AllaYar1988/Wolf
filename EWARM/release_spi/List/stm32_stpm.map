@@ -1,0 +1,503 @@
+###############################################################################
+#
+# IAR ELF Linker V8.30.1.114/W32 for ARM                  04/Jun/2019  15:35:07
+# Copyright 2007-2018 IAR Systems AB.
+#
+#    Output file  =  
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Exe\stm32_stpm.out
+#    Map file     =  
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\List\stm32_stpm.map
+#    Command line =  
+#        -f C:\Users\MARILE~1\AppData\Local\Temp\EW667A.tmp
+#        (C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\main.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\metrology.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\metrology_hal.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\metroTask.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\startup_stm32f103xe.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_cortex.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_gpio.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_msp.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_pwr.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_rcc.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_rcc_ex.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_spi.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_spi_ex.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_tim.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_tim_ex.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_hal_uart.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\stm32f1xx_it.o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj\system_stm32f1xx.o
+#        --redirect _Printf=_PrintfFull --redirect _Scanf=_ScanfFull
+#        --no_out_extension -o
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Exe\stm32_stpm.out
+#        --map
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\List\stm32_stpm.map
+#        --config
+#        C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM/stm32f103xe_flash.icf
+#        --semihosting --entry __iar_program_start --vfe --text_out locale)
+#
+###############################################################################
+
+*******************************************************************************
+*** RUNTIME MODEL ATTRIBUTES
+***
+
+CppFlavor       = *
+__SystemLibrary = DLib
+__dlib_version  = 6
+
+
+*******************************************************************************
+*** HEAP SELECTION
+***
+
+The basic heap was selected because no calls to memory allocation
+functions were found in the application outside of system library
+functions, and there are calls to deallocation functions in the
+application.
+
+
+*******************************************************************************
+*** PLACEMENT SUMMARY
+***
+
+"A0":  place at 0x800'0000 { ro section .intvec };
+"P1":  place in [from 0x800'0000 to 0x807'ffff] { ro };
+define block CSTACK with size = 512, alignment = 8 { };
+define block HEAP with size = 1K, alignment = 8 { };
+"P2":  place in [from 0x2000'0000 to 0x2000'ffff] {
+          rw, block CSTACK, block HEAP };
+initialize by copy { rw };
+
+  Section            Kind         Address    Size  Object
+  -------            ----         -------    ----  ------
+"A0":                                       0x130
+  .intvec            ro code   0x800'0000   0x130  startup_stm32f103xe.o [1]
+                             - 0x800'0130   0x130
+
+"P1":                                      0x3424
+  .text              ro code   0x800'0130   0xfc8  metrology_hal.o [1]
+  .text              ro code   0x800'10f8    0x66  ABImemset.o [3]
+  .text              ro code   0x800'115e    0x3a  zero_init3.o [3]
+  .text              ro code   0x800'1198    0xa6  ABImemcpy.o [3]
+  .rodata            const     0x800'123e     0x2  stm32f1xx_hal_rcc.o [1]
+  .text              ro code   0x800'1240   0x238  stm32f1xx_hal_gpio.o [1]
+  .text              ro code   0x800'1478    0x90  stm32f1xx_hal_spi_ex.o [1]
+  .text              ro code   0x800'1508   0x43c  stm32f1xx_hal_spi.o [1]
+  .text              ro code   0x800'1944    0xcc  stm32f1xx_hal_msp.o [1]
+  .text              ro code   0x800'1a10     0xc  stm32f1xx_hal.o [1]
+  .text              ro code   0x800'1a1c   0x14a  stm32f1xx_hal_cortex.o [1]
+  .text              ro code   0x800'1b68   0xaf0  stm32f1xx_hal_rcc.o [1]
+  .text              ro code   0x800'2658    0x1a  stm32f1xx_hal.o [1]
+  .text              ro code   0x800'2672    0x24  stm32f1xx_hal.o [1]
+  .text              ro code   0x800'2698   0x3fc  metrology.o [1]
+  .text              ro code   0x800'2a94   0x3fa  stm32f1xx_hal_tim.o [1]
+  .text              ro code   0x800'2e8e     0x2  stm32f1xx_hal_tim.o [1]
+  .text              ro code   0x800'2e90     0x2  stm32f1xx_hal_tim.o [1]
+  .text              ro code   0x800'2e92     0x2  stm32f1xx_hal_tim.o [1]
+  .text              ro code   0x800'2e94   0x1da  main.o [1]
+  .text              ro code   0x800'306e     0x2  stm32f1xx_hal_tim_ex.o [1]
+  .text              ro code   0x800'3070     0x2  stm32f1xx_hal_tim.o [1]
+  .text              ro code   0x800'3072     0x2  stm32f1xx_hal_tim_ex.o [1]
+  .text              ro code   0x800'3074    0x24  stm32f1xx_hal.o [1]
+  .text              ro code   0x800'3098   0x14c  metroTask.o [1]
+  .text              ro code   0x800'31e4    0x5a  stm32f1xx_hal_tim_ex.o [1]
+  .rodata            const     0x800'3240    0x68  metroTask.o [1]
+  .text              ro code   0x800'32a8    0x58  system_stm32f1xx.o [1]
+  .text              ro code   0x800'3300    0x2c  copy_init3.o [3]
+  .text              ro code   0x800'332c    0x28  data_init.o [3]
+  .iar.init_table    const     0x800'3354    0x24  - Linker created -
+  .text              ro code   0x800'3378    0x1e  cmain.o [3]
+  .text              ro code   0x800'3396     0x4  low_level_init.o [2]
+  .text              ro code   0x800'339a     0x4  exit.o [2]
+  .text              ro code   0x800'33a0     0xa  cexit.o [3]
+  .text              ro code   0x800'33ac    0x14  exit.o [4]
+  .rodata            const     0x800'33c0    0x1c  metroTask.o [1]
+  .text              ro code   0x800'33dc    0x1c  stm32f1xx_it.o [1]
+  .text              ro code   0x800'33f8    0x10  stm32f1xx_hal.o [1]
+  .rodata            const     0x800'3408    0x10  stm32f1xx_hal_rcc.o [1]
+  .rodata            const     0x800'3418    0x10  stm32f1xx_hal_rcc.o [1]
+  .text              ro code   0x800'3428    0x10  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3438     0xc  cstartup_M.o [3]
+  .text              ro code   0x800'3444     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3448     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'344c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3450     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3454     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3458     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'345c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3460     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3464     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3468     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'346c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3470     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3474     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3478     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'347c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3480     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3484     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3488     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'348c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3490     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3494     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3498     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'349c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34a0     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34a4     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34a8     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34ac     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34b0     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34b4     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34b8     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34bc     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34c0     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34c4     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34c8     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34cc     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34d0     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34d4     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34d8     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34dc     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34e0     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34e4     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34e8     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34ec     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34f0     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34f4     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34f8     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'34fc     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3500     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3504     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3508     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'350c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3510     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3514     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3518     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'351c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3520     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3524     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3528     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'352c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3530     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3534     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3538     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'353c     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3540     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3544     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'3548     0x4  startup_stm32f103xe.o [1]
+  .text              ro code   0x800'354c     0x4  startup_stm32f103xe.o [1]
+  Initializer bytes  const     0x800'3550     0x4  <for P2-1>
+  .rodata            const     0x800'3554     0x0  zero_init3.o [3]
+  .rodata            const     0x800'3554     0x0  copy_init3.o [3]
+                             - 0x800'3554  0x3424
+
+"P2", part 1 of 3:                            0x4
+  P2-1                        0x2000'0000     0x4  <Init block>
+    .data            inited   0x2000'0000     0x4  system_stm32f1xx.o [1]
+                            - 0x2000'0004     0x4
+
+"P2", part 2 of 3:                          0x4d4
+  .bss               zero     0x2000'0004   0x2e8  metrology.o [1]
+  .bss               zero     0x2000'02ec    0xb0  metrology_hal.o [1]
+  .bss               zero     0x2000'039c    0x78  metrology.o [1]
+  .bss               zero     0x2000'0414    0x3c  main.o [1]
+  .bss               zero     0x2000'0450    0x28  metrology_hal.o [1]
+  .bss               zero     0x2000'0478    0x28  metrology_hal.o [1]
+  .bss               zero     0x2000'04a0    0x24  metroTask.o [1]
+  .bss               zero     0x2000'04c4     0x4  main.o [1]
+  .bss               zero     0x2000'04c8     0x4  metrology_hal.o [1]
+  .bss               zero     0x2000'04cc     0x4  metrology_hal.o [1]
+  .bss               zero     0x2000'04d0     0x4  stm32f1xx_hal.o [1]
+  .bss               zero     0x2000'04d4     0x1  metrology_hal.o [1]
+  .bss               zero     0x2000'04d5     0x1  metrology_hal.o [1]
+  .bss               zero     0x2000'04d6     0x1  stm32f1xx_hal_spi_ex.o [1]
+                            - 0x2000'04d7   0x4d3
+
+"P2", part 3 of 3:                          0x200
+  CSTACK                      0x2000'04d8   0x200  <Block>
+    CSTACK           uninit   0x2000'04d8   0x200  <Block tail>
+                            - 0x2000'06d8   0x200
+
+Unused ranges:
+
+         From           To      Size
+         ----           --      ----
+   0x800'3554   0x807'ffff  0x7'caac
+  0x2000'06d8  0x2000'ffff    0xf928
+
+
+*******************************************************************************
+*** INIT TABLE
+***
+
+          Address      Size
+          -------      ----
+Zero (__iar_zero_init3)
+    1 destination range, total size 0x4d3:
+          0x2000'0004  0x4d3
+
+Copy (__iar_copy_init3)
+    1 source range, total size 0x4:
+           0x800'3550    0x4
+    1 destination range, total size 0x4:
+          0x2000'0000    0x4
+
+
+
+*******************************************************************************
+*** MODULE SUMMARY
+***
+
+    Module                  ro code  ro data  rw data
+    ------                  -------  -------  -------
+command line/config:
+    -------------------------------------------------
+    Total:
+
+C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj: [1]
+    main.o                      474                64
+    metroTask.o                 332      132       36
+    metrology.o               1 020               864
+    metrology_hal.o           4 040               266
+    startup_stm32f103xe.o       588
+    stm32f1xx_hal.o             126                 4
+    stm32f1xx_hal_cortex.o      330
+    stm32f1xx_hal_gpio.o        568
+    stm32f1xx_hal_msp.o         204
+    stm32f1xx_hal_rcc.o       2 800       34
+    stm32f1xx_hal_spi.o       1 084
+    stm32f1xx_hal_spi_ex.o      144                 1
+    stm32f1xx_hal_tim.o       1 026
+    stm32f1xx_hal_tim_ex.o       94
+    stm32f1xx_it.o               28
+    system_stm32f1xx.o           88        4        4
+    -------------------------------------------------
+    Total:                   12 946      170    1 239
+
+dl7M_tlf.a: [2]
+    exit.o                        4
+    low_level_init.o              4
+    -------------------------------------------------
+    Total:                        8
+
+rt7M_tl.a: [3]
+    ABImemcpy.o                 166
+    ABImemset.o                 102
+    cexit.o                      10
+    cmain.o                      30
+    copy_init3.o                 44
+    cstartup_M.o                 12
+    data_init.o                  40
+    zero_init3.o                 58
+    -------------------------------------------------
+    Total:                      462
+
+shb_l.a: [4]
+    exit.o                       20
+    -------------------------------------------------
+    Total:                       20
+
+    Gaps                          8        2
+    Linker created                        36      512
+-----------------------------------------------------
+    Grand Total:             13 444      208    1 751
+
+
+*******************************************************************************
+*** ENTRY LIST
+***
+
+Entry                       Address   Size  Type      Object
+-----                       -------   ----  ----      ------
+.iar.init_table$$Base    0x800'3354          --   Gb  - Linker created -
+.iar.init_table$$Limit   0x800'3378          --   Gb  - Linker created -
+?main                    0x800'3379         Code  Gb  cmain.o [3]
+CRC_u8Checksum          0x2000'04d4    0x1  Data  Lc  metrology_hal.o [1]
+CSTACK$$Base            0x2000'04d8          --   Gb  - Linker created -
+CSTACK$$Limit           0x2000'06d8          --   Gb  - Linker created -
+Error_Handler            0x800'306d    0x2  Code  Lc  main.o [1]
+HAL_Delay                0x800'2659   0x1a  Code  Wk  stm32f1xx_hal.o [1]
+HAL_GPIO_Init            0x800'1241  0x1d2  Code  Gb  stm32f1xx_hal_gpio.o [1]
+HAL_GPIO_TogglePin       0x800'1427    0xa  Code  Gb  stm32f1xx_hal_gpio.o [1]
+HAL_GPIO_WritePin        0x800'1413   0x14  Code  Gb  stm32f1xx_hal_gpio.o [1]
+HAL_GetTick              0x800'1a11    0xc  Code  Wk  stm32f1xx_hal.o [1]
+HAL_IncTick              0x800'33f9   0x10  Code  Wk  stm32f1xx_hal.o [1]
+HAL_Init                 0x800'3075   0x20  Code  Gb  stm32f1xx_hal.o [1]
+HAL_InitTick             0x800'2673   0x24  Code  Wk  stm32f1xx_hal.o [1]
+HAL_MspInit              0x800'1945   0x34  Code  Gb  stm32f1xx_hal_msp.o [1]
+HAL_NVIC_EnableIRQ       0x800'1b0d    0xa  Code  Gb  stm32f1xx_hal_cortex.o [1]
+HAL_NVIC_SetPriority     0x800'1aeb   0x22  Code  Gb  stm32f1xx_hal_cortex.o [1]
+HAL_NVIC_SetPriorityGrouping
+                         0x800'1ae3    0x8  Code  Gb  stm32f1xx_hal_cortex.o [1]
+HAL_RCC_ClockConfig      0x800'2245  0x332  Code  Gb  stm32f1xx_hal_rcc.o [1]
+HAL_RCC_GetHCLKFreq      0x800'25f1   0x26  Code  Gb  stm32f1xx_hal_rcc.o [1]
+HAL_RCC_GetSysClockFreq
+                         0x800'2577   0x7a  Code  Gb  stm32f1xx_hal_rcc.o [1]
+HAL_RCC_OscConfig        0x800'1b69  0x6dc  Code  Gb  stm32f1xx_hal_rcc.o [1]
+HAL_SPI_Init             0x800'1479   0x8c  Code  Gb  stm32f1xx_hal_spi_ex.o [1]
+HAL_SPI_MspInit          0x800'1979   0x4e  Code  Gb  stm32f1xx_hal_msp.o [1]
+HAL_SPI_TransmitReceive
+                         0x800'1509  0x34c  Code  Gb  stm32f1xx_hal_spi.o [1]
+HAL_SYSTICK_CLKSourceConfig
+                         0x800'1b1f   0x1c  Code  Gb  stm32f1xx_hal_cortex.o [1]
+HAL_SYSTICK_Config       0x800'1b17    0x8  Code  Gb  stm32f1xx_hal_cortex.o [1]
+HAL_SYSTICK_IRQHandler   0x800'1b5d    0x8  Code  Gb  stm32f1xx_hal_cortex.o [1]
+HAL_TIMEx_BreakCallback
+                         0x800'306f    0x2  Code  Wk  stm32f1xx_hal_tim_ex.o [1]
+HAL_TIMEx_CommutationCallback
+                         0x800'3073    0x2  Code  Wk  stm32f1xx_hal_tim_ex.o [1]
+HAL_TIMEx_MasterConfigSynchronization
+                         0x800'31e5   0x58  Code  Gb  stm32f1xx_hal_tim_ex.o [1]
+HAL_TIM_Base_Init        0x800'2a95   0x38  Code  Gb  stm32f1xx_hal_tim.o [1]
+HAL_TIM_Base_MspInit     0x800'19c7   0x30  Code  Gb  stm32f1xx_hal_msp.o [1]
+HAL_TIM_Base_Start_IT    0x800'2acd   0x1c  Code  Gb  stm32f1xx_hal_tim.o [1]
+HAL_TIM_ConfigClockSource
+                         0x800'2c5f  0x118  Code  Gb  stm32f1xx_hal_tim.o [1]
+HAL_TIM_IRQHandler       0x800'2ae9  0x176  Code  Gb  stm32f1xx_hal_tim.o [1]
+HAL_TIM_PeriodElapsedCallback
+                         0x800'3009    0x8  Code  Gb  main.o [1]
+METRO_Data              0x2000'039c   0x78  Data  Gb  metrology.o [1]
+METRO_Get_Measures       0x800'3127   0x14  Code  Gb  metroTask.o [1]
+METRO_Init               0x800'3099   0x66  Code  Gb  metroTask.o [1]
+METRO_Latch_Measures     0x800'3111   0x16  Code  Gb  metroTask.o [1]
+METRO_UpdateData         0x800'313b   0x52  Code  Lc  metroTask.o [1]
+METRO_Update_Measures    0x800'30ff   0x12  Code  Gb  metroTask.o [1]
+MX_GPIO_Init             0x800'2f89   0x80  Code  Lc  main.o [1]
+MX_TIM3_Init             0x800'2f47   0x42  Code  Lc  main.o [1]
+Metro_ApplyConfig        0x800'26e5   0x32  Code  Gb  metrology.o [1]
+Metro_Com_RxBuf         0x2000'0478   0x28  Data  Gb  metrology_hal.o [1]
+Metro_Com_TxBuf         0x2000'0450   0x28  Data  Gb  metrology_hal.o [1]
+Metro_Get_Data_device    0x800'2777   0x14  Code  Gb  metrology.o [1]
+Metro_HAL_CSS_EXT_Device
+                         0x800'0cb7   0x2c  Code  Lc  metrology_hal.o [1]
+Metro_HAL_CalcCRC8       0x800'0925   0x28  Code  Lc  metrology_hal.o [1]
+Metro_HAL_Crc8Calc       0x800'08f5   0x30  Code  Lc  metrology_hal.o [1]
+Metro_HAL_EN_EXT_Device
+                         0x800'0ce3   0x2c  Code  Lc  metrology_hal.o [1]
+Metro_HAL_Get_Data_device
+                         0x800'035b   0x88  Code  Gb  metrology_hal.o [1]
+Metro_HAL_RxHandler      0x800'0d3b  0x12e  Code  Lc  metrology_hal.o [1]
+Metro_HAL_RxHandler::Cpt_char
+                        0x2000'04d5    0x1  Data  Lc  metrology_hal.o [1]
+Metro_HAL_STPM_SYN_reset_3_pulses
+                         0x800'07b1   0x3e  Code  Lc  metrology_hal.o [1]
+Metro_HAL_STPM_SYN_single_pulse
+                         0x800'0781   0x30  Code  Lc  metrology_hal.o [1]
+Metro_HAL_SYN_EXT_Device
+                         0x800'0d0f   0x2c  Code  Lc  metrology_hal.o [1]
+Metro_HAL_Set_Latch_device_type
+                         0x800'026d   0xee  Code  Gb  metrology_hal.o [1]
+Metro_HAL_Setup          0x800'0131    0xa  Code  Gb  metrology_hal.o [1]
+Metro_HAL_SpiTxStart     0x800'0fdf   0xca  Code  Lc  metrology_hal.o [1]
+Metro_HAL_Spi_config     0x800'0f0f   0xd0  Code  Lc  metrology_hal.o [1]
+Metro_HAL_Stpm_Read      0x800'0ac1  0x1f6  Code  Gb  metrology_hal.o [1]
+Metro_HAL_Stpm_write     0x800'0951  0x170  Code  Gb  metrology_hal.o [1]
+Metro_HAL_TxHandler      0x800'0e69   0xa6  Code  Lc  metrology_hal.o [1]
+Metro_HAL_WaitMicroSecond
+                         0x800'0891   0x64  Code  Lc  metrology_hal.o [1]
+Metro_HAL_init_device    0x800'0189   0xa0  Code  Gb  metrology_hal.o [1]
+Metro_HAL_power_up_device
+                         0x800'0229   0x44  Code  Gb  metrology_hal.o [1]
+Metro_HAL_read_RMS_Current
+                         0x800'0733   0x4e  Code  Gb  metrology_hal.o [1]
+Metro_HAL_read_RMS_Voltage
+                         0x800'06e1   0x52  Code  Gb  metrology_hal.o [1]
+Metro_HAL_read_energy    0x800'05dd   0xfe  Code  Gb  metrology_hal.o [1]
+Metro_HAL_read_power     0x800'03e9  0x1f4  Code  Gb  metrology_hal.o [1]
+Metro_HAL_reset_transfer_context
+                         0x800'07ef   0xa2  Code  Lc  metrology_hal.o [1]
+Metro_Init               0x800'2699   0x16  Code  Gb  metrology.o [1]
+Metro_Read_Block_From_Device
+                         0x800'2753   0x12  Code  Gb  metrology.o [1]
+Metro_Read_Power         0x800'27b5   0x86  Code  Gb  metrology.o [1]
+Metro_Read_RMS           0x800'29a9   0xdc  Code  Gb  metrology.o [1]
+Metro_Read_energy        0x800'283b  0x16e  Code  Gb  metrology.o [1]
+Metro_Register_Latch_device_Config_type
+                         0x800'27a1   0x14  Code  Gb  metrology.o [1]
+Metro_Set_Hardware_Factors
+                         0x800'2717   0x3c  Code  Gb  metrology.o [1]
+Metro_Set_Latch_device_type
+                         0x800'278b   0x16  Code  Gb  metrology.o [1]
+Metro_Setup              0x800'26c5   0x20  Code  Gb  metrology.o [1]
+Metro_Write_Block_to_Device
+                         0x800'2765   0x12  Code  Gb  metrology.o [1]
+Metro_com_port_device    0x800'318d   0x48  Code  Lc  metroTask.o [1]
+Metro_power_up_device    0x800'26af   0x16  Code  Gb  metrology.o [1]
+Metrology_HAL_ReadBlock
+                         0x800'013b   0x24  Code  Gb  metrology_hal.o [1]
+Metrology_HAL_WriteBlock
+                         0x800'015f   0x2a  Code  Gb  metrology_hal.o [1]
+NVIC_EnableIRQ           0x800'1a41   0x14  Code  Lc  stm32f1xx_hal_cortex.o [1]
+NVIC_EncodePriority      0x800'1a79   0x3c  Code  Lc  stm32f1xx_hal_cortex.o [1]
+NVIC_GetPriorityGrouping
+                         0x800'1a37    0xa  Code  Lc  stm32f1xx_hal_cortex.o [1]
+NVIC_SetPriority         0x800'1a55   0x24  Code  Lc  stm32f1xx_hal_cortex.o [1]
+NVIC_SetPriorityGrouping
+                         0x800'1a1d   0x1a  Code  Lc  stm32f1xx_hal_cortex.o [1]
+Region$$Table$$Base      0x800'3354          --   Gb  - Linker created -
+Region$$Table$$Limit     0x800'3378          --   Gb  - Linker created -
+SPIWrp_SendAndReceiveByte
+                         0x800'10a9   0x22  Code  Lc  metrology_hal.o [1]
+SPI_WaitOnFlagUntilTimeout
+                         0x800'1855   0xf0  Code  Lc  stm32f1xx_hal_spi.o [1]
+STPM_com_port            0x800'33c0   0x1c  Data  Gb  metroTask.o [1]
+SysTick_Config           0x800'1ab5   0x2e  Code  Lc  stm32f1xx_hal_cortex.o [1]
+SysTick_Handler          0x800'33dd    0xc  Code  Gb  stm32f1xx_it.o [1]
+SystemClock_Config       0x800'2edf   0x68  Code  Gb  main.o [1]
+SystemCoreClock         0x2000'0000    0x4  Data  Gb  system_stm32f1xx.o [1]
+SystemInit               0x800'32a9   0x3e  Code  Gb  system_stm32f1xx.o [1]
+TIM3_IRQHandler          0x800'33e9    0xa  Code  Gb  stm32f1xx_it.o [1]
+TIM_Base_SetConfig       0x800'2d77   0x86  Code  Gb  stm32f1xx_hal_tim.o [1]
+TIM_ETR_SetConfig        0x800'2e77   0x18  Code  Lc  stm32f1xx_hal_tim.o [1]
+TIM_ITRx_SetConfig       0x800'2e63   0x14  Code  Lc  stm32f1xx_hal_tim.o [1]
+TIM_TI1_ConfigInputStage
+                         0x800'2e11   0x28  Code  Lc  stm32f1xx_hal_tim.o [1]
+TIM_TI2_ConfigInputStage
+                         0x800'2e39   0x2a  Code  Lc  stm32f1xx_hal_tim.o [1]
+Tab_METRO_internal_Devices_Config
+                        0x2000'0004  0x2e8  Data  Gb  metrology.o [1]
+Timer_Init               0x800'3011   0x3e  Code  Lc  main.o [1]
+__aeabi_memcpy           0x800'1199         Code  Gb  ABImemcpy.o [3]
+__aeabi_memcpy4          0x800'11b9         Code  Gb  ABImemcpy.o [3]
+__aeabi_memcpy8          0x800'11b9         Code  Gb  ABImemcpy.o [3]
+__aeabi_memset           0x800'10f9         Code  Gb  ABImemset.o [3]
+__cmain                  0x800'3379         Code  Gb  cmain.o [3]
+__exit                   0x800'33ad   0x14  Code  Gb  exit.o [4]
+__iar_Memset             0x800'10f9         Code  Gb  ABImemset.o [3]
+__iar_Memset_word        0x800'1101         Code  Gb  ABImemset.o [3]
+__iar_copy_init3         0x800'3301   0x2c  Code  Gb  copy_init3.o [3]
+__iar_data_init3         0x800'332d   0x28  Code  Gb  data_init.o [3]
+__iar_program_start      0x800'3439         Code  Gb  cstartup_M.o [3]
+__iar_zero_init3         0x800'115f   0x3a  Code  Gb  zero_init3.o [3]
+__low_level_init         0x800'3397    0x4  Code  Gb  low_level_init.o [2]
+__vector_table           0x800'0000         Data  Gb  startup_stm32f103xe.o [1]
+_call_main               0x800'3385         Code  Gb  cmain.o [3]
+_exit                    0x800'33a1         Code  Gb  cexit.o [3]
+_main                    0x800'3393         Code  Gb  cmain.o [3]
+aAPBAHBPrescTable        0x800'3418   0x10  Data  Gb  stm32f1xx_hal_rcc.o [1]
+exit                     0x800'339b    0x4  Code  Gb  exit.o [2]
+hspi                    0x2000'02ec   0xb0  Data  Gb  metrology_hal.o [1]
+htim3                   0x2000'0414   0x3c  Data  Gb  main.o [1]
+main                     0x800'2e95   0x4a  Code  Gb  main.o [1]
+metroData               0x2000'04a0   0x24  Data  Gb  metroTask.o [1]
+metroDefault             0x800'3240   0x68  Data  Gb  metroTask.o [1]
+p_Metro_Device_Config   0x2000'04cc    0x4  Data  Gb  metrology_hal.o [1]
+uCRCErrorWorkaroundCheck
+                        0x2000'04d6    0x1  Data  Gb  stm32f1xx_hal_spi_ex.o [1]
+uwPrescalerValue        0x2000'04c4    0x4  Data  Gb  main.o [1]
+uwTick                  0x2000'04d0    0x4  Data  Lc  stm32f1xx_hal.o [1]
+waitDummyCounter        0x2000'04c8    0x4  Data  Gb  metrology_hal.o [1]
+
+
+[1] = C:\_WORK\_DEVICES\STPM3x\Application\FW\stm32_stpm_basic_v1.3\EWARM\release_spi\Obj
+[2] = dl7M_tlf.a
+[3] = rt7M_tl.a
+[4] = shb_l.a
+
+  13 444 bytes of readonly  code memory
+     208 bytes of readonly  data memory
+   1 751 bytes of readwrite data memory
+
+Errors: none
+Warnings: none

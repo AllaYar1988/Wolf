@@ -1,5 +1,0 @@
-CAN_HL_Harness=CAN_H,CAN_L,GND
-EXT_Power_Harness=EXT_+24V,EXT_+5V,EXT_GND
-Power_Harness=3V9,+5V,3V3,GND
-RS485_AB_Harness=RS485_A,RS485_B,GND
-RS485_Harness=uSlave_TX_2,Slave_Select_2,uSlave_RX_2,uMaster_TX_2,Master_Select_2,uMaster_RX_2,uHMI_TX_2,HMI_Select_2,uHMI_RX_2,uCAN_TX_2,CAN_Select_2,uCAN_RX_2

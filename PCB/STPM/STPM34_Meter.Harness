@@ -1,2 +1,0 @@
-STPM_INT_Harness=uSTPM_IntLine1,uSTPM_IntLine2,uSTPM_IntLine3,uSTPM_IntLine4,uSTPM_IntLine5,uSTPM_IntLine6
-STPM_MCU_Harness=u5v,uGND,uSTPM_TX,uSTPM_RX,uSTPM_SYN

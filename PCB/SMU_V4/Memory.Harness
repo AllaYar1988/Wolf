@@ -1,2 +1,0 @@
-Memory_Harness=SDIO_D2,SDIO_D3,SDIO_CMD,SDIO_SCK,SDIO_D0,SDIO_D1,SD_Detect,uSCL,uSDA
-Power_Harness=3V9,+5V,3V3,GND

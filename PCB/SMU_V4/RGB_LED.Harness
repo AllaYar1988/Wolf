@@ -1,3 +1,0 @@
-EXT_Power_Harness=EXT_+24V,EXT_+5V,EXT_GND
-Power_Harness=3V9,+5V,3V3,GND
-RGB_Harness=uRGB_R,uRGB_G,uRGB_B
