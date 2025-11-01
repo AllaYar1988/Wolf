@@ -96,6 +96,57 @@ u8 energy_meters_write_register(u8 addr, u32 value);
 u32 energy_meters_get_last_value(void);
 
 /**
+ * @brief Read active power from specified channel
+ *
+ * Reads and converts the active power measurement to Watts.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return Active power in Watts (W), or 0.0 if channel invalid
+ */
+float energy_meters_read_active_power(u8 channel);
+
+/**
+ * @brief Read reactive power from specified channel
+ *
+ * Reads and converts the reactive power measurement to VAR.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return Reactive power in VAR, or 0.0 if channel invalid
+ */
+float energy_meters_read_reactive_power(u8 channel);
+
+/**
+ * @brief Read RMS current from specified channel
+ *
+ * Reads and converts the RMS current measurement to milliamps.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return RMS current in milliamps (mA), or 0.0 if channel invalid
+ */
+float energy_meters_read_rms_current(u8 channel);
+
+/**
+ * @brief Read RMS voltage from specified channel
+ *
+ * Reads and converts the RMS voltage measurement to Volts.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return RMS voltage in Volts (V), or 0.0 if channel invalid
+ */
+float energy_meters_read_rms_voltage(u8 channel);
+
+/**
+ * @brief Set calibration factors for voltage and current
+ *
+ * Sets calibration multipliers to adjust for measurement errors.
+ * Default values are 1.0 (no calibration).
+ *
+ * @param[in] voltage_cal Voltage calibration factor (typically 0.9 - 1.1)
+ * @param[in] current_cal Current calibration factor (typically 0.9 - 1.1)
+ */
+void energy_meters_set_calibration(float voltage_cal, float current_cal);
+
+/**
  * @brief Get diagnostic statistics for energy meter communication
  *
  * Retrieves counters for successful transactions, timeouts, and CRC errors.
