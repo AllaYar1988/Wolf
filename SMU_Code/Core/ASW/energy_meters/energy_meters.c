@@ -28,6 +28,12 @@ static u32 gLastReadValue = 0;
 /** @brief Current register address being read/written */
 static u8 gCurrentRegister = 0;
 
+/** @brief Previous register address (for delayed response protocol) */
+static u8 gPreviousRegister = 0xFF;
+
+/** @brief Flag indicating if we should store response data (delayed response handling) */
+static u8 gStoreResponseData = 0;
+
 /** @brief Timeout occurrence counter (for diagnostics) */
 static u32 gTimeoutCount = 0;
 
@@ -222,6 +228,8 @@ void energy_meters_handler(void)
 
             /* Data latched - now we can start reading */
             gCurrentRegister = STPM34_DATA_REGS_START;
+            gPreviousRegister = 0xFF;  /* Reset previous register tracking */
+            gStoreResponseData = 0;    /* First read is dummy (delayed response) */
             gChipInitialized = 1;
             state = ENU_EM_SEND_READ_REQ;
         }
@@ -243,7 +251,22 @@ void energy_meters_handler(void)
             /* End transaction - deselect chip (CS goes HIGH) */
             energy_meter_dll_transaction_end();
 
-            /* Valid response received - move to next register */
+            /* NOTE: Due to STPM34 delayed response protocol, the received data
+             * is from the PREVIOUS read command, not the current one.
+             * First read after latch returns dummy/garbage data. */
+
+            if (gStoreResponseData && gPreviousRegister >= STPM34_DATA_REGS_START)
+            {
+                /* Store response to PREVIOUS register address */
+                /* TODO: Add data storage array when needed (currently only tracking last value) */
+                /* regData[gPreviousRegister] = gLastReadValue; */
+            }
+
+            /* Update tracking for next iteration */
+            gPreviousRegister = gCurrentRegister;
+            gStoreResponseData = 1;  /* After first read, start storing data */
+
+            /* Move to next register */
             gCurrentRegister += 2;  /* Increment by 2 (16-bit addressing) */
 
             if (gCurrentRegister > STPM34_DATA_REGS_END)
@@ -261,6 +284,10 @@ void energy_meters_handler(void)
         {
             /* End transaction on timeout - deselect chip (CS goes HIGH) */
             energy_meter_dll_transaction_end();
+
+            /* Update tracking even on timeout */
+            gPreviousRegister = gCurrentRegister;
+            gStoreResponseData = 1;
 
             /* Timeout - skip this register and continue */
             gCurrentRegister += 2;
