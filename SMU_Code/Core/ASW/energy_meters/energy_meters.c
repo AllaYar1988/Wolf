@@ -37,6 +37,9 @@ static u8 gStoreResponseData = 0;
 /** @brief Timeout occurrence counter (for diagnostics) */
 static u32 gTimeoutCount = 0;
 
+/** @brief Timeout recovery delay counter (wait after timeout before retry) */
+static u32 gTimeoutRecoveryDelay = 0;
+
 /** @brief Configuration complete flag */
 static u8 gConfigComplete = 0;
 
@@ -247,6 +250,12 @@ void energy_meters_handler(void) {
 			/* NOTE: Due to STPM34 delayed response protocol, the received data
 			 * is from the PREVIOUS read command, not the current one.
 			 * First read after latch returns dummy/garbage data. */
+            /* Reset recovery delay on success */
+            gTimeoutRecoveryDelay = 0;
+
+            /* NOTE: Due to STPM34 delayed response protocol, the received data
+             * is from the PREVIOUS read command, not the current one.
+             * First read after latch returns dummy/garbage data. */
 
 			if (gStoreResponseData
 					&& gPreviousRegister >= STPM34_DATA_REGS_START) {
@@ -271,23 +280,39 @@ void energy_meters_handler(void) {
 			}
 		} else if (status == ENU_EM_STATUS_TIMEOUT) {
 			/* End transaction on timeout - deselect chip (CS goes HIGH) */
-			energy_meter_dll_transaction_end();
+
 
 			/* Update tracking even on timeout */
 			gPreviousRegister = gCurrentRegister;
 			gStoreResponseData = 1;
 
-			/* Timeout - skip this register and continue */
-			gCurrentRegister += 2;
+            /* Wait before retrying after timeout (give STPM34 time to recover) */
+            if (gTimeoutRecoveryDelay < ENERGY_METER_TIMEOUT_RECOVERY_DELAY)
+            {
+                gTimeoutRecoveryDelay++;
+                /* Stay in same state, don't proceed yet */
+            }
+            else
+            {
+            	energy_meter_dll_transaction_end();
+                /* Recovery delay complete - reset counter and proceed */
+                gTimeoutRecoveryDelay = 0;
 
-			if (gCurrentRegister > STPM34_DATA_REGS_END) {
-				state = ENU_EM_LATCH_DATA_TX;
-			} else {
-				state = ENU_EM_SEND_READ_REQ;
-			}
-		}
-		/* else ENU_EM_STATUS_IDLE or CRC_ERROR - keep waiting */
-		break;
+                /* Timeout - skip this register and continue */
+                gCurrentRegister += 2;
+
+                if (gCurrentRegister > STPM34_DATA_REGS_END)
+                {
+                    state = ENU_EM_LATCH_DATA_TX;
+                }
+                else
+                {
+                    state = ENU_EM_SEND_READ_REQ;
+                }
+            }
+        }
+        /* else ENU_EM_STATUS_IDLE or CRC_ERROR - keep waiting */
+        break;
 
 	case ENU_EM_IDLE:
 		/* Idle state - wait for next cycle */
