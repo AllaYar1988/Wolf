@@ -37,6 +37,9 @@ static u8 gStoreResponseData = 0;
 /** @brief Timeout occurrence counter (for diagnostics) */
 static u32 gTimeoutCount = 0;
 
+/** @brief Timeout recovery delay counter (wait after timeout before retry) */
+static u32 gTimeoutRecoveryDelay = 0;
+
 /** @brief Configuration complete flag */
 static u8 gConfigComplete = 0;
 
@@ -251,6 +254,9 @@ void energy_meters_handler(void)
             /* End transaction - deselect chip (CS goes HIGH) */
             energy_meter_dll_transaction_end();
 
+            /* Reset recovery delay on success */
+            gTimeoutRecoveryDelay = 0;
+
             /* NOTE: Due to STPM34 delayed response protocol, the received data
              * is from the PREVIOUS read command, not the current one.
              * First read after latch returns dummy/garbage data. */
@@ -289,16 +295,28 @@ void energy_meters_handler(void)
             gPreviousRegister = gCurrentRegister;
             gStoreResponseData = 1;
 
-            /* Timeout - skip this register and continue */
-            gCurrentRegister += 2;
-
-            if (gCurrentRegister > STPM34_DATA_REGS_END)
+            /* Wait before retrying after timeout (give STPM34 time to recover) */
+            if (gTimeoutRecoveryDelay < ENERGY_METER_TIMEOUT_RECOVERY_DELAY)
             {
-                state = ENU_EM_LATCH_DATA_TX;
+                gTimeoutRecoveryDelay++;
+                /* Stay in same state, don't proceed yet */
             }
             else
             {
-                state = ENU_EM_SEND_READ_REQ;
+                /* Recovery delay complete - reset counter and proceed */
+                gTimeoutRecoveryDelay = 0;
+
+                /* Timeout - skip this register and continue */
+                gCurrentRegister += 2;
+
+                if (gCurrentRegister > STPM34_DATA_REGS_END)
+                {
+                    state = ENU_EM_LATCH_DATA_TX;
+                }
+                else
+                {
+                    state = ENU_EM_SEND_READ_REQ;
+                }
             }
         }
         /* else ENU_EM_STATUS_IDLE or CRC_ERROR - keep waiting */
