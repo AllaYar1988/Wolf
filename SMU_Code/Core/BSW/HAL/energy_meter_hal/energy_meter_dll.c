@@ -38,10 +38,10 @@ static u8 gEnergyTxData[STPM34_FRAME_SIZE];
 static volatile u8 gTxBusy = 0;
 
 /** @brief TX complete flag (set by HAL_UART_TxCpltCallback) */
-static volatile u8 gTxComplete = 0;
+ volatile u8 gTxComplete = 0;
 
 /** @brief RX complete flag (set by HAL_UART_RxCpltCallback) */
-static volatile u8 gRxComplete = 0;
+ volatile u8 gRxComplete = 0;
 
 /** @brief Counter for transmission attempts (for debugging) */
 static volatile u32 gTxAttemptCount = 0;
