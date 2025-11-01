@@ -137,11 +137,36 @@
 #define STPM34_REG_CH2_REACTIVE_POWER   0x2C    /**< Channel 2 Reactive Power */
 #define STPM34_REG_CH2_APPARENT_RMS     0x2D    /**< Channel 2 Apparent RMS Power */
 
-/* RMS Voltage and Current Registers */
-#define STPM34_REG_CH1_VOLTAGE_RMS      0x28    /**< Channel 1 RMS Voltage */
-#define STPM34_REG_CH1_CURRENT_RMS      0x29    /**< Channel 1 RMS Current */
-#define STPM34_REG_CH2_VOLTAGE_RMS      0x2A    /**< Channel 2 RMS Voltage */
-#define STPM34_REG_CH2_CURRENT_RMS      0x2B    /**< Channel 2 RMS Current */
+/* RMS Voltage and Current Registers - Corrected addresses */
+#define STPM34_REG_CH1_VOLTAGE_RMS      0x2F    /**< Channel 1 RMS Voltage (DSP_REG12) */
+#define STPM34_REG_CH1_CURRENT_RMS      0x2E    /**< Channel 1 RMS Current (DSP_REG11) */
+#define STPM34_REG_CH2_VOLTAGE_RMS      0x31    /**< Channel 2 RMS Voltage (DSP_REG14) */
+#define STPM34_REG_CH2_CURRENT_RMS      0x30    /**< Channel 2 RMS Current (DSP_REG13) */
+
+/** @} */
+
+/* ========================================================================
+ * STPM34 Scaling Factors and Conversion Constants
+ * ======================================================================== */
+
+/**
+ * @defgroup STPM34_Scaling STPM34 Measurement Scaling Factors
+ * These values convert raw 24-bit register values to engineering units.
+ * Actual values depend on hardware configuration (current transformers, voltage dividers, etc.)
+ * @{
+ */
+
+/** @brief Voltage LSB value in mV (for 230V range with typical divider) */
+#define STPM34_VOLTAGE_LSB_MV           13.41f
+
+/** @brief Current LSB value in mA (depends on current transformer ratio) */
+#define STPM34_CURRENT_LSB_MA           1.0f
+
+/** @brief Power LSB value in mW */
+#define STPM34_POWER_LSB_MW             1.0f
+
+/** @brief Maximum raw value from 24-bit signed register */
+#define STPM34_RAW_MAX_VALUE            8388607L  /* 2^23 - 1 */
 
 /** @} */
 
