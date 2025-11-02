@@ -30,9 +30,16 @@
  */
 typedef enum {
     ENU_EM_INIT = 0,            /**< Initialization state */
+    ENU_EM_RESET_CHIP_TX,       /**< Send chip reset command */
+    ENU_EM_RESET_CHIP_RX,       /**< Wait for reset confirmation */
+    ENU_EM_WRITE_CONFIG_TX,     /**< Send configuration registers */
+    ENU_EM_WRITE_CONFIG_RX,     /**< Wait for config write confirmation */
+    ENU_EM_LATCH_DATA_TX,       /**< Send data latch command */
+    ENU_EM_LATCH_DATA_RX,       /**< Wait for latch confirmation */
     ENU_EM_SEND_READ_REQ,       /**< Send read request state */
     ENU_EM_WAIT_FOR_RESPONSE,   /**< Wait for response state */
-    ENU_EM_STOP                 /**< Stop/idle state */
+    ENU_EM_IDLE,                /**< Idle state after successful read */
+    ENU_EM_STOP                 /**< Stop/error state */
 } EnuEnrgyMeterState;
 
 /**
@@ -96,6 +103,57 @@ u8 energy_meters_write_register(u8 addr, u32 value);
 u32 energy_meters_get_last_value(void);
 
 /**
+ * @brief Read active power from specified channel
+ *
+ * Reads and converts the active power measurement to Watts.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return Active power in Watts (W), or 0.0 if channel invalid
+ */
+float energy_meters_read_active_power(u8 channel);
+
+/**
+ * @brief Read reactive power from specified channel
+ *
+ * Reads and converts the reactive power measurement to VAR.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return Reactive power in VAR, or 0.0 if channel invalid
+ */
+float energy_meters_read_reactive_power(u8 channel);
+
+/**
+ * @brief Read RMS current from specified channel
+ *
+ * Reads and converts the RMS current measurement to milliamps.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return RMS current in milliamps (mA), or 0.0 if channel invalid
+ */
+float energy_meters_read_rms_current(u8 channel);
+
+/**
+ * @brief Read RMS voltage from specified channel
+ *
+ * Reads and converts the RMS voltage measurement to Volts.
+ *
+ * @param[in] channel Channel number (1 or 2)
+ * @return RMS voltage in Volts (V), or 0.0 if channel invalid
+ */
+float energy_meters_read_rms_voltage(u8 channel);
+
+/**
+ * @brief Set calibration factors for voltage and current
+ *
+ * Sets calibration multipliers to adjust for measurement errors.
+ * Default values are 1.0 (no calibration).
+ *
+ * @param[in] voltage_cal Voltage calibration factor (typically 0.9 - 1.1)
+ * @param[in] current_cal Current calibration factor (typically 0.9 - 1.1)
+ */
+void energy_meters_set_calibration(float voltage_cal, float current_cal);
+
+/**
  * @brief Get diagnostic statistics for energy meter communication
  *
  * Retrieves counters for successful transactions, timeouts, and CRC errors.
@@ -114,5 +172,15 @@ void energy_meters_get_statistics(u32 *success_count, u32 *timeout_count, u32 *c
  * Useful for periodic statistics collection or after maintenance.
  */
 void energy_meters_reset_statistics(void);
+
+/**
+ * @brief Check if STPM34 initialization is complete
+ *
+ * Returns initialization status. The chip must be initialized before
+ * valid data can be read from data registers.
+ *
+ * @return 1 if initialization complete, 0 if still initializing
+ */
+u8 energy_meters_is_initialized(void);
 
 #endif /* ASW_ENERGY_METERS_ENERGY_METERS_H_ */

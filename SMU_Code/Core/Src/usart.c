@@ -220,6 +220,17 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
     /* USER CODE BEGIN UART4_MspInit 1 */
 
+      /* UART4 DMA interrupt Init */
+      HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 0, 0);
+      HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
+
+      HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+      HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+
+      /* UART4 interrupt Init */
+      HAL_NVIC_SetPriority(UART4_IRQn, 2, 0);
+      HAL_NVIC_EnableIRQ(UART4_IRQn);
+
     /* USER CODE END UART4_MspInit 1 */
     }
   if(uartHandle->Instance==USART1)
@@ -413,7 +424,33 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 {
 
-  if(uartHandle->Instance==USART1)
+  if(uartHandle->Instance==UART4)
+  {
+  /* USER CODE BEGIN UART4_MspDeInit 0 */
+
+  /* USER CODE END UART4_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_UART4_CLK_DISABLE();
+
+    /**UART4 GPIO Configuration
+    PA0-WKUP     ------> UART4_TX
+    PA1     ------> UART4_RX
+    */
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_0|GPIO_PIN_1);
+
+    /* UART4 DMA DeInit */
+    HAL_DMA_DeInit(uartHandle->hdmarx);
+    HAL_DMA_DeInit(uartHandle->hdmatx);
+
+    /* UART4 interrupt Deinit */
+    HAL_NVIC_DisableIRQ(DMA1_Stream2_IRQn);
+    HAL_NVIC_DisableIRQ(DMA1_Stream4_IRQn);
+    HAL_NVIC_DisableIRQ(UART4_IRQn);
+  /* USER CODE BEGIN UART4_MspDeInit 1 */
+
+  /* USER CODE END UART4_MspDeInit 1 */
+  }
+  else if(uartHandle->Instance==USART1)
   {
   /* USER CODE BEGIN USART1_MspDeInit 0 */
 

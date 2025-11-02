@@ -1,0 +1,4 @@
+Digital Input_Harness=u1_Di1_2,u2_Di2_2,u3_Di3_2,u4_Di4_2
+Ext_DI_Harness=DI_1,DI_2,DI_3,COM
+EXT_Power_Harness=EXT_+24V,EXT_+5V,EXT_GND
+Power_Harness=3V9,+5V,3V3,GND

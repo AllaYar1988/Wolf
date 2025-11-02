@@ -37,6 +37,12 @@ static u8 gEnergyTxData[STPM34_FRAME_SIZE];
 /** @brief Flag indicating TX is in progress */
 static volatile u8 gTxBusy = 0;
 
+/** @brief TX complete flag (set by HAL_UART_TxCpltCallback) */
+ volatile u8 gTxComplete = 0;
+
+/** @brief RX complete flag (set by HAL_UART_RxCpltCallback) */
+ volatile u8 gRxComplete = 0;
+
 /** @brief Counter for transmission attempts (for debugging) */
 static volatile u32 gTxAttemptCount = 0;
 
@@ -59,6 +65,7 @@ static volatile u32 gTxSuccessCount = 0;
  *
  * @note Chip select timing is handled by DLL layer for proper protocol
  * @note Data is copied to internal buffer to ensure it persists during DMA
+ * @note DMA completion triggers HAL_UART_TxCpltCallback / HAL_UART_RxCpltCallback
  * @note For multiple meter support, add device instance parameter
  */
 void energy_meter_dll_transaction_send(u8 *msg, u16 size)
@@ -80,25 +87,23 @@ void energy_meter_dll_transaction_send(u8 *msg, u16 size)
     ENERGY_METER_CS_SELECT();
 
     /* Small delay to ensure chip select is stable before transmission */
-    /* (typically 1-2 microseconds, but depends on hardware) */
     for (volatile int i = 0; i < 10; i++);
 
-    /* Abort any ongoing DMA transmission to ensure clean state */
+    /* Clear completion flags */
+    gTxComplete = 0;
+    gRxComplete = 0;
+
+    /* Abort any ongoing DMA transfers to ensure clean state */
     HAL_UART_AbortTransmit(&ENERGY_METER_UART);
+    HAL_UART_AbortReceive(&ENERGY_METER_UART);
 
     /* Wait a bit for abort to complete */
     for (volatile int i = 0; i < 100; i++);
 
-    /* Force UART to ready state for new transmission */
-    ENERGY_METER_UART.gState = HAL_UART_STATE_READY;
+    /* Start DMA reception first (must be ready before TX) */
+    HAL_UART_Receive_DMA(&ENERGY_METER_UART, gEnergyRxData, STPM34_FRAME_SIZE);
 
-    /* Clear any error flags in UART status register */
-    __HAL_UART_CLEAR_PEFLAG(&ENERGY_METER_UART);
-    __HAL_UART_CLEAR_FEFLAG(&ENERGY_METER_UART);
-    __HAL_UART_CLEAR_NEFLAG(&ENERGY_METER_UART);
-    __HAL_UART_CLEAR_OREFLAG(&ENERGY_METER_UART);
-
-    /* Transmit data via DMA using internal buffer */
+    /* Then transmit data via DMA */
     status = HAL_UART_Transmit_DMA(&ENERGY_METER_UART, gEnergyTxData, size);
 
     /* Track status */
@@ -150,55 +155,27 @@ void energy_meter_dll_receive_init(void)
 /**
  * @brief Check and process received energy meter data
  *
- * Checks if data has been received via DMA. Uses UART IDLE line detection
- * to determine when a frame has been completely received.
+ * Checks if data has been received via interrupt mode (IT).
+ * Uses gRxComplete flag set by HAL_UART_RxCpltCallback.
  *
  * @return Number of bytes received, 0 if no data available
  *
  * @note This function should be called periodically to poll for received data
- * @note After application reads data via get_rx_buffer(), next call will clear and restart DMA
+ * @note After application reads data via get_rx_buffer(), reception is complete
  */
 u16 energy_meter_dll_receive(void)
 {
     u16 returnValue = 0;
 
-    /* If previous data was read, clear buffer and restart DMA for next reception */
-    if (gDataReadFlag) {
-        /* Stop current DMA reception */
-        HAL_UART_DMAStop(&ENERGY_METER_UART);
-
-        /* Clear the buffer for next reception */
-        memset(gEnergyRxData, 0, ENERGY_METER_BUFFER_SIZE);
-
-        /* Restart DMA reception */
-        HAL_UART_Receive_DMA(&ENERGY_METER_UART, gEnergyRxData, ENERGY_METER_BUFFER_SIZE);
-
-        /* Clear the flag and byte count */
-        gDataReadFlag = 0;
-        gRxByteCount = 0;
-    }
-
-    /* Check if UART IDLE flag is set (frame completed) */
-    if (__HAL_UART_GET_FLAG(&ENERGY_METER_UART, UART_FLAG_IDLE))
+    /* Check if RX complete flag is set by interrupt callback */
+    if (gRxComplete)
     {
-        uint32_t temp;
+        /* Data received successfully */
+        gRxByteCount = STPM34_FRAME_SIZE;
+        returnValue = gRxByteCount;
 
-        /* Clear idle flag by reading SR and DR registers */
-        temp = ENERGY_METER_UART.Instance->SR;
-        temp = ENERGY_METER_UART.Instance->DR;
-        (void)temp; /* Avoid compiler warning */
-
-        /* Calculate number of bytes received */
-        if (ENERGY_METER_UART.hdmarx != NULL) {
-            gRxByteCount = ENERGY_METER_BUFFER_SIZE -
-                          __HAL_DMA_GET_COUNTER(ENERGY_METER_UART.hdmarx);
-            returnValue = gRxByteCount;
-
-            /* Set flag to indicate data is ready to be read */
-            if (gRxByteCount > 0) {
-                gDataReadFlag = 1;
-            }
-        }
+        /* Clear the flag (one-time read) */
+        gRxComplete = 0;
     }
 
     return returnValue;

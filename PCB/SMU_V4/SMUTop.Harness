@@ -1,0 +1,4 @@
+Comm_Harness=uCTSM_2,uGPRS_RX_2,uGPRS_TX_2,uWiFi_RX_2,uWiFi_TX_2
+Digital Input_Harness=u1_Di1_2,u2_Di2_2,u3_Di3_2,u4_Di4_2
+Powert_Harness=+5V_2,3V3-BUS,3V9,uControl3V9_2,GND_2
+RS485_Harness=uSlave_TX_2,Slave_Select_2,uSlave_RX_2,uMaster_TX_2,Master_Select_2,uMaster_RX_2,uHMI_TX_2,HMI_Select_2,uHMI_RX_2,uCAN_TX_2,CAN_Select_2,uCAN_RX_2
