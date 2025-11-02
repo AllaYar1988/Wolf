@@ -624,24 +624,17 @@ static EnuEnergyMeterStatus energy_meters_process_response(void) {
 /**
  * @brief Parse STPM34 response frame
  *
- * Extracts 32-bit data value from response frame.
- * Response format: [Byte0][Byte1][Byte2][Byte3][CRC]
- * Data is little-endian (LSB first).
+ * Extracts 16-bit data value from response frame.
+ * Response format: [Word1_Low][Word1_High][Word2_Low][Word2_High][CRC]
  *
  * @param[in] rxBuf Pointer to received buffer (must be at least 5 bytes)
- * @return Extracted 32-bit value (little endian)
+ * @return Extracted 16-bit value from first word (little endian)
  */
 static u32 energy_meters_parse_response(u8 *rxBuf) {
 	u32 value;
 
-	/* Extract full 32-bit word from 4 data bytes
-	 * STPM34 response frame: [Byte0][Byte1][Byte2][Byte3][CRC]
-	 * Data is little-endian: LSB first, MSB last
-	 */
-	value = ((u32)rxBuf[0]) |        // Bits 0-7 (LSB)
-	        ((u32)rxBuf[1] << 8) |   // Bits 8-15
-	        ((u32)rxBuf[2] << 16) |  // Bits 16-23
-	        ((u32)rxBuf[3] << 24);   // Bits 24-31 (MSB)
+	/* Extract first 16-bit word (little endian: LOW byte, HIGH byte) */
+	value = ((u32) rxBuf[0]) | ((u32) rxBuf[1] << 8);
 
 	return value;
 }
